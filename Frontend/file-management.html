@@ -1,0 +1,391 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PUP PQ Scheduler - File Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../style/style.css" />
+</head>
+<body class="bg-gray-50 text-gray-800">
+    <div class="flex h-screen overflow-hidden">
+        
+        <!-- Sidebar Navigation -->
+        <aside class="w-80 bg-[#7f0000] text-white flex flex-col justify-between border-r border-[#660000] h-screen flex-shrink-0">
+            <div class="flex flex-col overflow-hidden">
+                <div class="p-6 flex items-center justify-between border-b border-[#660000] flex-shrink-0">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full overflow-hidden bg-white flex-shrink-0">
+                            <img src="../style/PUP LOGO.png" onerror="this.src='https://placehold.co/150x150?text=PUP'" alt="Logo" class="w-full h-full object-cover">
+                        </div>
+                        <div>
+                            <h2 class="text-sm font-bold tracking-wide uppercase">PUP PQ-SCHEDULER</h2>
+                            <p class="text-[10px] text-gray-200">Academic Management</p>
+                        </div>
+                    </div>
+                    <a href="index.html" class="text-gray-100 hover:text-gray-200 text-xs tracking-wide uppercase">LOGOUT</a>
+                </div>
+                <nav class="space-y-1 px-4 py-4 flex-shrink-0 overflow-y-auto custom-scrollbar">
+                    <a href="dashboard.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="grid" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Dashboard</span>
+                    </a>
+                    <a href="program-resources.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="layers" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Program Resources</span>
+                    </a>
+                    <a href="faculty-profile.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="user-check" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Faculty Profile</span>
+                    </a>
+                    <a href="faculty-status.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="list-check" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Faculty Status</span>
+                    </a>
+                    <a href="faculty-loading.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="package" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Faculty Loading</span>
+                    </a>
+                    <a href="faculty-workloads.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="book-open" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Faculty Workloads</span>
+                    </a>
+                    <a href="section-timetables.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="calendar" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Section Timetables</span>
+                    </a>
+                    <a href="room-schedules.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="map-pin" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Room Schedules</span>
+                    </a>
+                    <a href="room-management.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="door-open" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Room Management</span>
+                    </a>
+                    <a href="file-management.html" class="sidebar-item active-nav flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="folder-open" class="w-4 h-4 text-yellow-300"></i>
+                        <span>File Management</span>
+                    </a>
+                </nav>
+            </div>
+            <div id="sidebar-user-block" class="p-4 bg-[#710000] border-t border-[#660000] cursor-pointer hover:bg-[#5a0000] transition-colors flex-shrink-0">
+                <p class="text-[11px] uppercase tracking-widest text-gray-300">User</p>
+                <p class="mt-1 font-semibold text-white">Academic Aide</p>
+            </div>
+        </aside>
+
+        <!-- Main Content Panel -->
+        <main class="flex-1 overflow-y-auto p-8 custom-scrollbar bg-slate-50">
+            
+            <!-- Page Header Card -->
+            <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                    <h2 class="text-3xl font-bold text-gray-900">File Management</h2>
+                    
+                </div>
+            </div>
+
+            <!-- Dashboard Split Layout -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
+                
+                <!-- Left: File Upload & Scanning Actions -->
+                <div class="space-y-8 lg:col-span-1">
+                    
+                    <!-- File Drag & Drop Upload Card -->
+                    <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                        <h3 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                            <i data-lucide="upload-cloud" class="w-5 h-5 text-red-600"></i>Upload File
+                        </h3>
+                        <div id="file-dropzone" class="border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center cursor-pointer hover:border-red-400 hover:bg-red-50/10 transition-all">
+                            <input type="file" id="file-input" class="hidden" accept=".xlsx,.ods" />
+                            <i data-lucide="file-spreadsheet" class="w-10 h-10 text-slate-400 mx-auto mb-3"></i>
+                            <p class="text-sm font-semibold text-slate-700">Drag & drop files here</p>
+                            <p class="text-xs text-slate-400 mt-1">or click to browse from device</p>
+                            <p class="text-[10px] text-slate-400 mt-3 font-semibold uppercase">Supports .xlsx & .ods formats</p>
+                        </div>
+                    </div>
+
+                    <!-- Sync Database Scanner Action Card -->
+                    <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 relative overflow-hidden">
+                        <div class="absolute top-0 left-0 w-2 h-full bg-[#7f0000]"></div>
+                        <h3 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                            <i data-lucide="refresh-cw" class="w-5 h-5 text-[#7f0000]"></i>Sync Database
+                        </h3>
+                        <p class="text-xs text-slate-500 mb-6 leading-relaxed">
+                            Scanning parses all active spreadsheets inside the central folder to reconstruct the database tables. Any active schedules, faculty profiles, and rooms will be rebuilt.
+                        </p>
+                        
+                        <div class="bg-slate-50 rounded-2xl p-4 mb-6">
+                            <div class="flex items-center justify-between text-xs text-slate-500 mb-2">
+                                <span>Last Synchronization:</span>
+                                <span id="last-sync-time" class="font-semibold text-slate-700">Never</span>
+                            </div>
+                            <div class="flex items-center justify-between text-xs text-slate-500">
+                                <span>Note:</span>
+                                <span class="font-semibold text-emerald-600">Be careful when syncing the database.</span>
+                            </div>
+                        </div>
+
+                        <button id="btn-trigger-scan" onclick="triggerDatabaseScan()" class="w-full bg-[#7f0000] text-white py-3 rounded-2xl text-sm font-bold shadow-md shadow-red-900/10 hover:bg-[#660000] hover:shadow-lg transition-all flex items-center justify-center gap-2">
+                            <i data-lucide="play" class="w-4 h-4"></i>Scan and Sync Database
+                        </button>
+                    </div>
+
+                </div>
+
+                <!-- Right: Active Sheets Registry List -->
+                <div class="lg:col-span-2 space-y-8">
+                    
+                    <!-- File Inventory Table List -->
+                    <div class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+                        <div class="p-6 border-b border-slate-100 flex items-center justify-between">
+                            <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                <i data-lucide="folder-open" class="w-5 h-5 text-yellow-500"></i>Spreadsheet Directory
+                            </h3>
+                            <span id="files-count-badge" class="bg-slate-100 text-slate-600 text-xs font-semibold px-2.5 py-1 rounded-full">0 Files</span>
+                        </div>
+                        
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-50 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                                        <th class="py-4 px-6">File Name</th>
+                                        <th class="py-4 px-6 text-right">Size</th>
+                                        <th class="py-4 px-6">Last Modified</th>
+                                        <th class="py-4 px-6 text-center">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="files-list-table-body" class="divide-y divide-slate-100 text-sm">
+                                    <tr>
+                                        <td colspan="4" class="py-12 text-center text-slate-400">
+                                            <i data-lucide="loader" class="w-6 h-6 animate-spin mx-auto mb-2 text-slate-300"></i>
+                                            Loading spreadsheets...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Scanner Progress Spinner Modal (Overlayed) -->
+    <div id="scan-loading-overlay" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl transform scale-95 opacity-0 transition-all duration-300" id="scan-loading-panel">
+            <div class="relative w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                <div class="absolute inset-0 rounded-full border-4 border-slate-100"></div>
+                <div class="absolute inset-0 rounded-full border-4 border-t-red-600 animate-spin"></div>
+                <i data-lucide="refresh-cw" class="w-6 h-6 text-red-600 animate-pulse"></i>
+            </div>
+            <h4 class="text-lg font-bold text-slate-900">Scanning Spreadsheets</h4>
+            <p class="text-xs text-slate-500 mt-2 leading-relaxed">
+                Reading spreadsheets and populating database tables. This will take a few seconds...
+            </p>
+        </div>
+    </div>
+
+    <!-- Standard JS files -->
+    <script src="../JS/tempDatabase.js"></script>
+    <script src="../JS/app.common.js"></script>
+    <script src="../JS/app.modal.js"></script>
+    
+    <!-- Local Page Controller Module -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            loadFilesList();
+            initDropzone();
+            
+            // Populate last sync from localStorage if present
+            const lastSync = localStorage.getItem('last_database_sync');
+            if (lastSync) {
+                document.getElementById('last-sync-time').textContent = lastSync;
+            }
+        });
+
+        // Load files list from express api
+        async function loadFilesList() {
+            const tbody = document.getElementById('files-list-table-body');
+            const badge = document.getElementById('files-count-badge');
+            if (!tbody) return;
+
+            try {
+                const res = await fetch('http://localhost:5000/api/system-files');
+                const data = await res.json();
+                if (data.success) {
+                    badge.textContent = `${data.files.length} Files`;
+                    if (data.files.length === 0) {
+                        tbody.innerHTML = `
+                            <tr>
+                                <td colspan="4" class="py-12 text-center text-slate-400">
+                                    <i data-lucide="inbox" class="w-8 h-8 mx-auto mb-2 text-slate-300"></i>
+                                    No spreadsheets found in folder
+                                </td>
+                            </tr>
+                        `;
+                    } else {
+                        tbody.innerHTML = data.files.map(file => {
+                            const date = new Date(file.mtime).toLocaleString();
+                            const sizeKb = (file.size / 1024).toFixed(1) + ' KB';
+                            return `
+                                <tr class="hover:bg-slate-50/50">
+                                    <td class="py-4 px-6 font-semibold text-slate-700 flex items-center gap-2">
+                                        <i data-lucide="file-spreadsheet" class="w-4 h-4 text-emerald-600 flex-shrink-0"></i>
+                                        <span>${file.name}</span>
+                                    </td>
+                                    <td class="py-4 px-6 text-right font-medium text-slate-600">${sizeKb}</td>
+                                    <td class="py-4 px-6 text-slate-500 text-xs">${date}</td>
+                                    <td class="py-4 px-6 text-center">
+                                        <button onclick="deleteFile('${file.name}')" class="text-red-500 hover:text-red-700 hover:bg-red-50 p-1.5 rounded-lg transition-all" title="Delete File">
+                                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('');
+                    }
+                    lucide.createIcons();
+                } else {
+                    showBanner(data.error || 'Failed to list files', 'error');
+                }
+            } catch (err) {
+                console.error(err);
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="py-12 text-center text-red-500">
+                            <i data-lucide="alert-circle" class="w-8 h-8 mx-auto mb-2 text-red-400"></i>
+                            Failed to load files from server. Make sure the API server is running on port 5000.
+                        </td>
+                    </tr>
+                `;
+                lucide.createIcons();
+            }
+        }
+
+        // Dropzone & file uploads bindings
+        function initDropzone() {
+            const zone = document.getElementById('file-dropzone');
+            const input = document.getElementById('file-input');
+            if (!zone || !input) return;
+
+            zone.onclick = () => input.click();
+            input.onchange = (e) => {
+                if (e.target.files.length > 0) {
+                    uploadFile(e.target.files[0]);
+                }
+            };
+
+            zone.ondragover = (e) => {
+                e.preventDefault();
+                zone.classList.add('border-red-400', 'bg-red-50/10');
+            };
+
+            zone.ondragleave = () => {
+                zone.classList.remove('border-red-400', 'bg-red-50/10');
+            };
+
+            zone.ondrop = (e) => {
+                e.preventDefault();
+                zone.classList.remove('border-red-400', 'bg-red-50/10');
+                if (e.dataTransfer.files.length > 0) {
+                    uploadFile(e.dataTransfer.files[0]);
+                }
+            };
+        }
+
+        // Upload single file via Multer API
+        async function uploadFile(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const res = await fetch('http://localhost:5000/api/upload-system-file', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showBanner(`File "${file.name}" uploaded successfully!`, 'success');
+                    loadFilesList();
+                } else {
+                    showBanner(data.error || 'Upload failed', 'error');
+                }
+            } catch (err) {
+                console.error(err);
+                showBanner('Upload connection error', 'error');
+            }
+        }
+
+        // Delete Excel file
+        async function deleteFile(filename) {
+            if (!confirm(`Are you sure you want to delete "${filename}"? This will remove it from System_content_info/.`)) return;
+
+            try {
+                const res = await fetch('http://localhost:5000/api/delete-system-file', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showBanner(`File "${filename}" deleted successfully`, 'success');
+                    loadFilesList();
+                } else {
+                    showBanner(data.error || 'Deletion failed', 'error');
+                }
+            } catch (err) {
+                console.error(err);
+                showBanner('Delete connection error', 'error');
+            }
+        }
+
+        // Trigger POST /api/scan-system-files
+        async function triggerDatabaseScan() {
+            const overlay = document.getElementById('scan-loading-overlay');
+            const panel = document.getElementById('scan-loading-panel');
+            if (overlay && panel) {
+                overlay.classList.remove('hidden');
+                overlay.classList.add('flex');
+                setTimeout(() => {
+                    panel.classList.remove('scale-95', 'opacity-0');
+                    panel.classList.add('scale-100', 'opacity-100');
+                }, 10);
+            }
+
+            try {
+                const res = await fetch('http://localhost:5000/api/scan-system-files', {
+                    method: 'POST'
+                });
+                const data = await res.json();
+                if (data.success) {
+                    const timeStr = new Date().toLocaleString();
+                    localStorage.setItem('last_database_sync', timeStr);
+                    document.getElementById('last-sync-time').textContent = timeStr;
+                    
+                    showBanner(`Sync complete! Loaded: ${data.summary.faculty} Instructors, ${data.summary.rooms} Rooms, ${data.summary.subjects} Curriculum Subjects, ${data.summary.loads} Assigned Schedules.`, 'success');
+                } else {
+                    showBanner(data.error || 'Scan parsing failed', 'error');
+                }
+            } catch (err) {
+                console.error(err);
+                showBanner('Scan connection error', 'error');
+            } finally {
+                if (overlay && panel) {
+                    panel.classList.remove('scale-100', 'opacity-100');
+                    panel.classList.add('scale-95', 'opacity-0');
+                    setTimeout(() => {
+                        overlay.classList.remove('flex');
+                        overlay.classList.add('hidden');
+                    }, 150);
+                }
+            }
+        }
+    </script>
+</body>
+</html>

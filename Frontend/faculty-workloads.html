@@ -1,0 +1,164 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PUP PQ Scheduler - Faculty Workloads</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../style/style.css">
+</head>
+<body class="bg-gray-50 text-gray-800">
+    <div class="flex h-screen overflow-hidden">
+        
+        <aside class="w-80 bg-[#7f0000] text-white flex flex-col justify-between border-r border-[#660000] h-screen">
+            <div class="flex flex-col overflow-hidden">
+                <div class="p-6 flex items-center justify-between border-b border-[#660000] flex-shrink-0">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full overflow-hidden bg-white flex-shrink-0">
+                            <img src="../style/PUP LOGO.png" onerror="this.src='https://placehold.co/150x150?text=PUP'" alt="Logo" class="w-full h-full object-cover">
+                        </div>
+                        <div>
+                            <h2 class="text-sm font-bold tracking-wide uppercase">PUP PQ-SCHEDULER</h2>
+                            <p class="text-[10px] text-gray-200">Academic Management</p>
+                        </div>
+                    </div>
+                    <a href="index.html" class="text-gray-100 hover:text-gray-200 text-xs tracking-wide uppercase">LOGOUT</a>
+                </div>
+                <nav class="space-y-1 px-4 py-4 flex-shrink-0 overflow-y-auto custom-scrollbar">
+                    <a href="dashboard.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="grid" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Dashboard</span>
+                    </a>
+                    <a href="program-resources.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="layers" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Program Resources</span>
+                    </a>
+                    <a href="faculty-profile.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="user-check" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Faculty Profile</span>
+                    </a>
+                    <a href="faculty-status.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="list-check" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Faculty Status</span>
+                    </a>
+                    <a href="faculty-loading.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="package" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Faculty Loading</span>
+                    </a>
+                    <a href="faculty-workloads.html" class="sidebar-item active-nav flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="book-open" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Faculty Workloads</span>
+                    </a>
+                    <a href="section-timetables.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="calendar" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Section Timetables</span>
+                    </a>
+                    <a href="room-schedules.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="map-pin" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Room Schedules</span>
+                    </a>
+                    <a href="room-management.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="door-open" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Room Management</span>
+                    </a>
+                    <a href="file-management.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="folder-open" class="w-4 h-4 text-yellow-300"></i>
+                        <span>File Management</span>
+                    </a>
+                </nav>
+            </div>
+            
+            <div class="p-4 bg-[#710000] border-t border-[#660000] flex-shrink-0">
+                <p class="text-[11px] uppercase tracking-widest text-gray-300">User</p>
+                <p class="mt-1 font-semibold text-white">Academic Aide</p>
+            </div>
+        </aside>
+
+        <main class="flex-1 overflow-y-auto p-6 custom-scrollbar bg-slate-50 space-y-4">
+            <div class="bg-white px-6 py-5 rounded-3xl shadow-sm border border-gray-100 flex items-center justify-between w-full mb-4">
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-900 tracking-tight">Faculty Workload</h2>
+                    <p class="text-xs text-slate-500 mt-1">Track faculty workloads across active programs and sections.</p>
+                </div>
+                <button class="px-4 py-2 border border-slate-200 text-slate-600 rounded-full text-xs font-semibold hover:bg-slate-50 transition flex items-center gap-1.5 shadow-sm">
+                    <i data-lucide="activity" class="w-3.5 h-3.5"></i>
+                    <span>Loading overview</span>
+                </button>
+            </div>
+
+            <div class="flex items-end justify-between gap-4 w-full">
+                <div class="flex items-center gap-3 flex-1 max-w-2xl">
+                    <div class="w-1/4">
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1 tracking-wider">Academic Year:</label>
+                        <select id="sy-selector" onchange="renderFacultyCalendar()" class="p-2 border rounded-xl font-bold text-xs text-red-800 bg-white outline-none w-full shadow-sm"></select>
+                    </div>
+                    <div class="w-1/4">
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1 tracking-wider">Semester:</label>
+                        <select id="semester-selector" onchange="renderFacultyCalendar()" class="p-2 border rounded-xl font-bold text-xs text-red-800 bg-white outline-none w-full shadow-sm">
+                            <option value="All">All Semesters</option>
+                            <option value="1">1st Semester</option>
+                            <option value="2">2nd Semester</option>
+                            <option value="3">Summer</option>
+                        </select>
+                    </div>
+                    <div class="w-1/4">
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1 tracking-wider">Select Professor:</label>
+                        <select id="view-faculty-select" onchange="renderFacultyCalendar()" class="p-2 border rounded-xl font-bold text-xs text-red-800 bg-white outline-none w-full shadow-sm"></select>
+                    </div>
+                    <div class="w-1/4">
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1 tracking-wider">Program Filter:</label>
+                        <select id="workload-program-filter" onchange="renderFacultyCalendar()" class="p-2 border rounded-xl font-bold text-xs text-slate-700 bg-white outline-none w-full shadow-sm">
+                            <option value="All">All</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="flex gap-2 mb-0.5">
+                    <div class="relative group">
+                        <button class="px-4 py-2.5 bg-[#1e293b] text-white rounded-xl text-xs font-bold hover:bg-slate-800 shadow transition flex items-center gap-1.5">
+                            <i data-lucide="download" class="w-3.5 h-3.5"></i>Export Reports
+                            <i data-lucide="chevron-down" class="w-3 h-3"></i>
+                        </button>
+                        <div class="absolute right-0 hidden group-hover:block bg-white border border-slate-200 rounded-xl shadow-lg z-10 py-1 w-48">
+                            <button onclick="exportFacultyWorkloadReport()" class="block w-full text-left px-4 py-2 text-xs hover:bg-slate-100 text-slate-700 font-medium">📋 Workload Report</button>
+                            <button onclick="exportFacultyRoster()" class="block w-full text-left px-4 py-2 text-xs hover:bg-slate-100 text-slate-700 font-medium">👥 Faculty Roster</button>
+                            <button onclick="exportAllFacultyRoster()" class="block w-full text-left px-4 py-2 text-xs hover:bg-slate-100 text-slate-700 font-medium">🌍 All Faculty Roster</button>
+                            <button onclick="exportLoadDistributionSummary()" class="block w-full text-left px-4 py-2 text-xs hover:bg-slate-100 text-slate-700 font-medium">📊 Load Summary</button>
+                            <button onclick="exportProgramCurriculum()" class="block w-full text-left px-4 py-2 text-xs hover:bg-slate-100 text-slate-700 font-medium">📚 Curriculum</button>
+                        </div>
+                    </div>
+                    <button onclick="downloadWorkload()" class="px-4 py-2.5 bg-[#7f0000] text-white rounded-xl text-xs font-bold hover:bg-[#660000] shadow transition flex items-center gap-1.5">
+                        <i data-lucide="printer" class="w-3.5 h-3.5"></i>Print Workload
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex items-start justify-between w-full pt-2">
+                <div>
+                    <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-0.5">Faculty Workload Calendar</p>
+                    <h2 class="text-2xl font-bold text-gray-900 tracking-tight">Faculty Workload</h2>
+                    <p id="workload-page-subtitle" class="text-xs text-slate-500">Program: Information Technology</p>
+                </div>
+                <div id="workload-type-summary" class="flex items-center gap-2"></div>
+            </div>
+
+            <div id="workload-header-stats" class="grid grid-cols-4 gap-4"></div>
+
+            <div class="grid grid-cols-3 gap-4 text-[11px] font-bold">
+                <div class="p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-center">Regular Load</div>
+                <div class="p-2 rounded-xl bg-sky-50 border border-sky-200 text-sky-700 text-center">Part-Time Load</div>
+                <div class="p-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-center">Temporary Substitute Load</div>
+            </div>
+
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div id="faculty-calendar-container" class="w-full p-4 text-xs text-gray-600"></div>
+            </div>
+        </main>
+    </div>
+
+    <script src="../JS/tempDatabase.js"></script>
+    <script src="../JS/app.common.js"></script>
+    <script src="../JS/app.page-faculty-workloads.js"></script>
+</body>
+</html>

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PUP PQ Scheduler - Room Schedules</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../style/style.css">
+</head>
+<body class="bg-gray-50 text-gray-800">
+    <div class="flex h-screen overflow-hidden">
+        
+        <aside class="w-80 bg-[#7f0000] text-white flex flex-col justify-between border-r border-[#660000] h-screen">
+            <div class="flex flex-col overflow-hidden">
+                <div class="p-6 flex items-center justify-between border-b border-[#660000] flex-shrink-0">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full overflow-hidden bg-white flex-shrink-0">
+                            <img src="../style/PUP LOGO.png" onerror="this.src='https://placehold.co/150x150?text=PUP'" alt="Logo" class="w-full h-full object-cover">
+                        </div>
+                        <div>
+                            <h2 class="text-sm font-bold tracking-wide uppercase">PUP PQ-SCHEDULER</h2>
+                            <p class="text-[10px] text-gray-200">Academic Management</p>
+                        </div>
+                    </div>
+                    <a href="index.html" class="text-gray-100 hover:text-gray-200 text-xs tracking-wide uppercase">LOGOUT</a>
+                </div>
+                <nav class="space-y-1 px-4 py-4 flex-shrink-0 overflow-y-auto custom-scrollbar">
+                    <a href="dashboard.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="grid" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Dashboard</span>
+                    </a>
+                    <a href="program-resources.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="layers" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Program Resources</span>
+                    </a>
+                    <a href="faculty-profile.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="user-check" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Faculty Profile</span>
+                    </a>
+                    <a href="faculty-status.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="list-check" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Faculty Status</span>
+                    </a>
+                    <a href="faculty-loading.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="package" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Faculty Loading</span>
+                    </a>
+                    <a href="faculty-workloads.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="book-open" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Faculty Workloads</span>
+                    </a>
+                    <a href="section-timetables.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="calendar" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Section Timetables</span>
+                    </a>
+                    <a href="room-schedules.html" class="sidebar-item active-nav flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="map-pin" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Room Schedules</span>
+                    </a>
+                    <a href="room-management.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="door-open" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Room Management</span>
+                    </a>
+                    <a href="file-management.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="folder-open" class="w-4 h-4 text-yellow-300"></i>
+                        <span>File Management</span>
+                    </a>
+                </nav>
+            </div>
+            
+            <div class="p-4 bg-[#710000] border-t border-[#660000] flex-shrink-0">
+                <p class="text-[11px] uppercase tracking-widest text-gray-300">User</p>
+                <p class="mt-1 font-semibold text-white">Academic Aide</p>
+            </div>
+        </aside>
+
+        <main class="flex-1 overflow-y-auto p-8 custom-scrollbar bg-slate-50">
+            <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div>
+                        <h2 class="text-3xl font-bold text-gray-900">Room Schedules</h2>
+                        <div class="flex items-center gap-2 mt-2">
+                            <p class="text-sm text-gray-500">Filter and view class schedules by specific room designations for program:</p>
+                            <select class="active-program-dropdown p-1 border rounded-lg text-sm bg-gray-50 outline-none font-semibold text-maroon" onchange="setActiveProgram(this.value)"></select>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap gap-3">
+                        <a href="room-management.html" class="text-sm font-semibold text-blue-600">Manage Rooms</a>
+                        <a href="faculty-loading.html" class="text-sm font-semibold text-blue-600">Assign Classes</a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 mt-6">
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div class="flex items-center gap-3 flex-1 max-w-xl">
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Academic Year</label>
+                            <select id="sy-selector" onchange="renderRoomSchedulePreview()" class="p-2.5 border rounded-xl w-40 text-sm bg-gray-50 font-semibold outline-none"></select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Semester</label>
+                            <select id="semester-selector" onchange="renderRoomSchedulePreview()" class="p-2.5 border rounded-xl w-40 text-sm bg-gray-50 font-semibold outline-none">
+                                <option value="All">All Semesters</option>
+                                <option value="1">1st Semester</option>
+                                <option value="2">2nd Semester</option>
+                                <option value="3">Summer</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Select Building</label>
+                            <select id="view-building-select" onchange="updateRoomDropdowns()" class="p-2.5 border rounded-xl w-44 text-sm bg-gray-50 font-semibold outline-none">
+                                <option value="All">All Buildings</option>
+                                <option value="Main Building">Main Building</option>
+                                <option value="New Building">New Building</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Select Room</label>
+                            <select id="view-room-select" onchange="renderRoomSchedulePreview()" class="p-2.5 border rounded-xl w-40 text-sm bg-gray-50 font-semibold outline-none"></select>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="exportRoomSchedule()" class="px-4 py-3 border-2 border-[#7f0000] text-[#7f0000] rounded-2xl text-xs font-bold hover:bg-[#fef2f2] flex items-center">
+                            <i data-lucide="download-cloud" class="w-4 h-4 mr-2"></i>Export Room Schedule
+                        </button>
+                        <button onclick="toggleCalendarFullscreen('rooms')" class="w-10 h-10 rounded-2xl border border-slate-300 text-slate-700 hover:bg-slate-100 flex items-center justify-center">
+                            <i data-lucide="maximize" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+                <div id="room-schedule-preview" class="mt-6"></div>
+            </div>
+        </main>
+    </div>
+
+
+    <script src="../JS/tempDatabase.js"></script>
+    <script src="../JS/app.common.js"></script>
+    <script src="../JS/app.page-room-schedules.js"></script>
+</body>
+</html>

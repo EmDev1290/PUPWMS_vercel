@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PUP PQ Scheduler - Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../style/style.css">
+</head>
+<body class="bg-gray-50 text-gray-800">
+    <div class="flex h-screen overflow-hidden">
+        <aside class="w-80 bg-[#7f0000] text-white flex flex-col justify-between border-r border-[#660000] h-screen">
+            <div class="flex flex-col overflow-hidden">
+                <div class="p-6 flex items-center justify-between border-b border-[#660000] flex-shrink-0">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full overflow-hidden bg-white flex-shrink-0">
+                            <img src="../style/PUP LOGO.png" onerror="this.src='https://placehold.co/150x150?text=PUP'" alt="Logo" class="w-full h-full object-cover">
+                        </div>
+                        <div>
+                            <h2 class="text-sm font-bold tracking-wide uppercase">PUP PQ-SCHEDULER</h2>
+                            <p class="text-[10px] text-gray-200">Academic Management</p>
+                        </div>
+                    </div>
+                    <a href="index.html" class="text-gray-100 hover:text-gray-200 text-xs tracking-wide uppercase">LOGOUT</a>
+                </div>
+                <nav class="space-y-1 px-4 py-4 flex-shrink-0 overflow-y-auto">
+                    <a href="dashboard.html" class="sidebar-item active-nav flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="grid" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Dashboard</span>
+                    </a>
+                    <a href="program-resources.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="layers" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Program Resources</span>
+                    </a>
+                    <a href="faculty-profile.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="user-check" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Faculty Profile</span>
+                    </a>
+                    <a href="faculty-status.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="list-check" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Faculty Status</span>
+                    </a>
+                    <a href="faculty-loading.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="package" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Faculty Loading</span>
+                    </a>
+                    <a href="faculty-workloads.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="book-open" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Faculty Workloads</span>
+                    </a>
+                    <a href="section-timetables.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="calendar" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Section Timetables</span>
+                    </a>
+                    <a href="room-schedules.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="map-pin" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Room Schedules</span>
+                    </a>
+                    <a href="room-management.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="door-open" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Room Management</span>
+                    </a>
+                    <a href="file-management.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="folder-open" class="w-4 h-4 text-yellow-300"></i>
+                        <span>File Management</span>
+                    </a>
+                </nav>
+            </div>
+            <div class="p-4 bg-[#710000] border-t border-[#660000]">
+                <p class="text-[11px] uppercase tracking-widest text-gray-300">User</p>
+                <p class="mt-1 font-semibold text-white">Academic Aide</p>
+            </div>
+        </aside>
+        <main class="flex-1 overflow-y-auto p-8 custom-scrollbar bg-slate-50">
+            <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div>
+                        <p class="text-xs uppercase tracking-widest text-slate-400 mb-2">Welcome Back,</p>
+                        <h2 class="text-3xl font-bold text-gray-900">Academic Team</h2>
+                        <p class="text-sm text-gray-500 mt-2">
+                            Overview of active programs, loads, and detected conflicts.
+                            <span class="block mt-2 text-sm text-gray-700">Current Academic Year: <span id="dashboard-current-sy" class="font-semibold text-gray-900"></span></span>
+                        </p>
+                    </div>
+                    <div class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600">
+                        <i data-lucide="monitor" class="w-4 h-4"></i>
+                        <span>Dashboard</span>
+                    </div>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mt-6">
+    <!-- Faculty Total Card -->
+    <div id="card-faculty-total" class="rounded-3xl bg-white p-5 shadow-sm border border-gray-100 hover:shadow-lg transform hover:scale-105 transition duration-200 cursor-pointer flex flex-col items-center">
+        <i data-lucide="users" class="w-6 h-6 text-maroon-800"></i>
+        <p class="text-xs uppercase tracking-widest text-slate-400 mt-2">Faculty</p>
+        <p id="card-total-faculty" class="mt-4 text-4xl font-bold text-gray-900">0</p>
+    </div>
+                <div class="rounded-3xl bg-white p-5 shadow-sm border border-gray-100 hover:shadow-lg transform hover:scale-105 transition duration-200 cursor-pointer flex flex-col items-center">
+                    <i data-lucide="users" class="w-6 h-6 text-emerald-600"></i>
+                    <p class="text-xs uppercase tracking-widest text-slate-400 mt-2">Active Faculty</p>
+                    <p id="card-active-faculty" class="mt-4 text-4xl font-bold text-gray-900">0</p>
+                </div>
+                <div class="rounded-3xl bg-white p-5 shadow-sm border border-gray-100 hover:shadow-lg transform hover:scale-105 transition duration-200 cursor-pointer flex flex-col items-center">
+    <p class="text-xs uppercase tracking-widest text-slate-400">Inactive Faculty</p>
+    <p id="card-inactive-faculty" class="mt-6 text-4xl font-bold text-gray-900">0</p>
+</div>
+<div class="rounded-3xl bg-white p-5 shadow-sm border border-gray-100">
+                    <p class="text-xs uppercase tracking-widest text-slate-400">Active Programs</p>
+                    <p id="card-active-programs" class="mt-6 text-4xl font-bold text-gray-900">0</p>
+                </div>
+                <div class="rounded-3xl bg-white p-5 shadow-sm border border-gray-100">
+                    <p class="text-xs uppercase tracking-widest text-slate-400">Assigned Loads</p>
+                    <p id="card-assigned-loads" class="mt-6 text-4xl font-bold text-gray-900">0</p>
+                </div>
+                <div class="rounded-3xl bg-white p-5 shadow-sm border border-gray-100">
+                    <p class="text-xs uppercase tracking-widest text-slate-400">Conflicts Detected</p>
+                    <p id="card-conflicts-detected" class="mt-6 text-4xl font-bold text-emerald-600">0</p>
+                </div>
+            </div>
+        
+        </main>
+    <!-- Faculty Modal -->
+    <div id="facultyModal" class="fixed inset-0 hidden bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-xl shadow-lg w-full max-w-2xl p-6 overflow-y-auto max-h-screen">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold" id="facultyModalTitle">Faculty Details</h2>
+                <button id="closeFacultyModal" class="text-gray-500 hover:text-gray-700">&times;</button>
+            </div>
+            <canvas id="regularPartTimeChart" class="h-40 w-full mb-4"></canvas>
+            <canvas id="educationChart" class="h-40 w-full mb-4"></canvas>
+            <div id="facultyList" class="mt-4"></div>
+        </div>
+    </div>
+    </div>
+
+
+    <script src="../JS/tempDatabase.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="../JS/app.common.js?v=20260710"></script>
+    <script src="../JS/app.page-dashboard.js?v=20260710"></script>
+</body>
+</html>

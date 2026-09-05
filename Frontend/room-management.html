@@ -1,0 +1,154 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PUP PQ Scheduler - Room Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../style/style.css">
+</head>
+<body class="bg-gray-50 text-gray-800">
+    <div class="flex h-screen overflow-hidden">
+        
+        <aside class="w-80 bg-[#7f0000] text-white flex flex-col justify-between border-r border-[#660000] h-screen">
+            <div class="flex flex-col overflow-hidden">
+                <div class="p-6 flex items-center justify-between border-b border-[#660000] flex-shrink-0">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full overflow-hidden bg-white flex-shrink-0">
+                            <img src="../style/PUP LOGO.png" onerror="this.src='https://placehold.co/150x150?text=PUP'" alt="Logo" class="w-full h-full object-cover">
+                        </div>
+                        <div>
+                            <h2 class="text-sm font-bold tracking-wide uppercase">PUP PQ-SCHEDULER</h2>
+                            <p class="text-[10px] text-gray-200">Academic Management</p>
+                        </div>
+                    </div>
+                    <a href="index.html" class="text-gray-100 hover:text-gray-200 text-xs tracking-wide uppercase">LOGOUT</a>
+                </div>
+                <nav class="space-y-1 px-4 py-4 flex-shrink-0 overflow-y-auto custom-scrollbar">
+                    <a href="dashboard.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="grid" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Dashboard</span>
+                    </a>
+                    <a href="program-resources.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="layers" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Program Resources</span>
+                    </a>
+                    <a href="faculty-profile.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="user-check" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Faculty Profile</span>
+                    </a>
+                    <a href="faculty-status.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="list-check" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Faculty Status</span>
+                    </a>
+                    <a href="faculty-loading.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="package" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Faculty Loading</span>
+                    </a>
+                    <a href="faculty-workloads.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="book-open" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Faculty Workloads</span>
+                    </a>
+                    <a href="section-timetables.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="calendar" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Section Timetables</span>
+                    </a>
+                    <a href="room-schedules.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="map-pin" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Room Schedules</span>
+                    </a>
+                    <a href="room-management.html" class="sidebar-item active-nav flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="door-open" class="w-4 h-4 text-yellow-300"></i>
+                        <span>Room Management</span>
+                    </a>
+                    <a href="file-management.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                        <i data-lucide="folder-open" class="w-4 h-4 text-yellow-300"></i>
+                        <span>File Management</span>
+                    </a>
+                </nav>
+            </div>
+            
+            <div class="p-4 bg-[#710000] border-t border-[#660000] flex-shrink-0">
+                <p class="text-[11px] uppercase tracking-widest text-gray-300">User</p>
+                <p class="mt-1 font-semibold text-white">Academic Aide</p>
+            </div>
+        </aside>
+
+        <main class="flex-1 overflow-y-auto p-8 custom-scrollbar bg-slate-50">
+            <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div>
+                        <h2 class="text-3xl font-bold text-gray-900">Room Management</h2>
+                        <p class="text-sm text-gray-500 mt-2">View and manage rooms for Main and New buildings.</p>
+                    </div>
+                    <button onclick="openAddRoomModal()" class="px-4 py-2 rounded-2xl bg-[#7f0000] text-white text-sm font-semibold hover:bg-[#660000] flex items-center gap-2">
+                        <i data-lucide="plus-circle" class="w-4 h-4"></i>Add Room
+                    </button>
+                </div>
+            </div>
+
+            <div class="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-xl font-bold text-gray-900 flex items-center gap-2">
+                            <i data-lucide="building-2" class="w-5 h-5 text-blue-600"></i>
+                            New Building
+                        </h3>
+                        <span class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-semibold" id="new-building-count">0 rooms</span>
+                    </div>
+                    <div id="new-building-rooms" class="space-y-2"></div>
+                </div>
+
+                <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-xl font-bold text-gray-900 flex items-center gap-2">
+                            <i data-lucide="building" class="w-5 h-5 text-amber-600"></i>
+                            Main Building
+                        </h3>
+                        <span class="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-sm font-semibold" id="old-building-count">0 rooms</span>
+                    </div>
+                    <div id="old-building-rooms" class="space-y-2"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="modal-room" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4 transition-all duration-300">
+        <div class="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl border border-slate-200 transform transition-all duration-300">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h3 id="modal-room-title" class="text-xl font-bold text-gray-900">Add Room</h3>
+                    <p class="text-sm text-slate-500">Add a new room to a building.</p>
+                </div>
+                <button onclick="closeRoomModal()" class="text-slate-500 hover:text-slate-800">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Room Name</label>
+                    <input id="room-name" type="text" placeholder="e.g., Room A101, Lab A" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]" />
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Building</label>
+                    <select id="room-building" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]">
+                        <option value="Main Building">Main Building</option>
+                        <option value="New Building">New Building</option>
+                    </select>
+                </div>
+            </div>
+            <div class="mt-6 flex flex-wrap gap-3 justify-end">
+                <button onclick="closeRoomModal()" class="px-4 py-3 rounded-2xl border border-slate-300 text-slate-700 hover:bg-slate-100">Cancel</button>
+                <button onclick="saveRoom()" class="px-4 py-3 rounded-2xl bg-[#7f0000] text-white hover:bg-[#660000]">Save Room</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script src="../JS/tempDatabase.js"></script>
+    <script src="../JS/app.common.js"></script>
+    <script src="../JS/app.page-room-management.js"></script>
+</body>
+</html>
