@@ -216,7 +216,7 @@
             if (!tbody) return;
 
             try {
-                const res = await fetch('http://localhost:5000/api/system-files');
+                const res = await fetch('/api/system-files');
                 const data = await res.json();
                 if (data.success) {
                     badge.textContent = `${data.files.length} Files`;
@@ -305,7 +305,7 @@
             formData.append('file', file);
 
             try {
-                const res = await fetch('http://localhost:5000/api/upload-system-file', {
+                const res = await fetch('/api/upload-system-file', {
                     method: 'POST',
                     body: formData
                 });
@@ -327,7 +327,7 @@
             if (!confirm(`Are you sure you want to delete "${filename}"? This will remove it from System_content_info/.`)) return;
 
             try {
-                const res = await fetch('http://localhost:5000/api/delete-system-file', {
+                const res = await fetch('/api/delete-system-file', {
                     method: 'DELETE',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ filename })
@@ -359,7 +359,7 @@
             }
 
             try {
-                const res = await fetch('http://localhost:5000/api/scan-system-files', {
+                const res = await fetch('/api/scan-system-files', {
                     method: 'POST'
                 });
                 const data = await res.json();

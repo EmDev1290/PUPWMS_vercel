@@ -5,6 +5,21 @@ body {
     background-color: #f3f4f6;
 }
 
+#dashboard-analytics-panel canvas,
+#dashboard-analytics-panel canvas:hover,
+#dashboard-analytics-panel .chartjs-render-monitor,
+#dashboard-analytics-panel .chartjs-render-monitor:hover {
+    transform: none !important;
+    scale: 1 !important;
+    transition: none !important;
+    pointer-events: none !important;
+    user-select: none !important;
+}
+
+#dashboard-analytics-panel canvas * {
+    pointer-events: none !important;
+}
+
 /* System Color Definition Anchors */
 .pup-maroon {
     background-color: #800000;

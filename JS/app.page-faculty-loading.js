@@ -349,7 +349,7 @@ function clearFormSelection() {
 }
 
 // Delete Selected load from form
-function deleteSelectedLoad() {
+async function deleteSelectedLoad() {
     if (!currentLoadEditId) return;
     
     const load = State.db.loads.find(l => String(l.id) === String(currentLoadEditId));
@@ -357,16 +357,20 @@ function deleteSelectedLoad() {
 
     if (!confirm(`Delete workload: ${load.sub} for ${load.prof}?`)) return;
 
-    State.db.loads = State.db.loads.filter(l => String(l.id) !== String(currentLoadEditId));
-    
-    persistState();
-    renderTimetableGrid();
-    clearFormSelection();
-    showBanner('Workload deleted successfully!', 'success');
+    try {
+        await deleteLoadFromAPI(load.id);
+        State.db.loads = State.db.loads.filter(l => String(l.id) !== String(currentLoadEditId));
+        await persistState();
+        renderTimetableGrid();
+        clearFormSelection();
+        showBanner('Workload deleted successfully!', 'success');
+    } catch (error) {
+        showBanner('Could not remove the workload from the database.', 'error');
+    }
 }
 
 // Save Workload
-function saveLoad() {
+async function saveLoad() {
     if (!selectedDay || !selectedTime) {
         showBanner('Please select a slot on the calendar grid first.', 'error');
         return;
@@ -496,10 +500,15 @@ function saveLoad() {
         State.db.loads.push(load);
     }
 
-    persistState();
-    renderTimetableGrid();
-    clearFormSelection();
-    showBanner('Workload assigned successfully!', 'success');
+    try {
+        await persistLoadToAPI(load);
+        await persistState();
+        renderTimetableGrid();
+        clearFormSelection();
+        showBanner('Workload assigned successfully!', 'success');
+    } catch (error) {
+        showBanner('Could not save the workload to the database.', 'error');
+    }
 }
 
 // Bind load table rendering wrapper to our calendar renderer

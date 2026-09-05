@@ -279,3 +279,11 @@ const State = {
         ]
     }
 };
+
+window.State = State;
+window.facultyRegistry = facultyRegistry;
+window.TEMP_DATABASE = TEMP_DATABASE;
+window.designationOptions = designationOptions;
+window.CLASSIFICATION_SYSTEM = CLASSIFICATION_SYSTEM;
+window.workloadDatabase = workloadDatabase;
+window.GLOBAL_MAX_LOAD_CAP = GLOBAL_MAX_LOAD_CAP;

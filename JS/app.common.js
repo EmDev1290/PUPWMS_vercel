@@ -294,6 +294,14 @@ const State = {
     }
 };
 
+window.State = State;
+window.facultyRegistry = facultyRegistry;
+window.TEMP_DATABASE = TEMP_DATABASE;
+window.designationOptions = designationOptions;
+window.CLASSIFICATION_SYSTEM = CLASSIFICATION_SYSTEM;
+window.workloadDatabase = workloadDatabase;
+window.GLOBAL_MAX_LOAD_CAP = GLOBAL_MAX_LOAD_CAP;
+
 const Days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 // STRICT 30-MINUTE INTERVAL GENERATOR RECONCILIATOR
@@ -638,15 +646,50 @@ async function persistState() {
     if (activeAcademicYear) {
         localStorage.setItem('activeAcademicYear', activeAcademicYear);
     }
-    
-    // The bulk persist-state backend endpoint has been removed for security and data integrity.
-    // The frontend should now be updated to make atomic API calls (e.g., POST /api/rooms) 
-    // immediately when data is modified in the UI.
+}
+
+async function persistLoadToAPI(loadEntry) {
+    try {
+        const response = await fetch('/api/loads', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(loadEntry)
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || 'Failed to save load');
+        }
+
+        return true;
+    } catch (error) {
+        console.error('Unable to persist load to API:', error);
+        throw error;
+    }
+}
+
+async function deleteLoadFromAPI(loadId) {
+    try {
+        const response = await fetch(`/api/loads/${loadId}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders()
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || 'Failed to delete load');
+        }
+
+        return true;
+    } catch (error) {
+        console.error('Unable to delete load from API:', error);
+        throw error;
+    }
 }
 
 async function updateFacultyAPI(facultyObj) {
     try {
-        const response = await fetch('http://localhost:5000/api/faculty', {
+        const response = await fetch('/api/faculty', {
             method: 'POST',
             headers: getAuthHeaders(),
             body: JSON.stringify(facultyObj)
@@ -663,7 +706,7 @@ async function loadSavedState() {
     const savedProgram = localStorage.getItem('activeProgram');
 
     try {
-        const response = await fetch('http://localhost:5000/api/initial-state', {
+        const response = await fetch('/api/initial-state', {
             headers: getAuthHeaders()
         });
         if (response.ok) {
@@ -1043,7 +1086,7 @@ function openChangeCredentialsModal() {
             }
 
             try {
-                const response = await fetch('http://localhost:5000/api/change-credentials', {
+                const response = await fetch('/api/change-credentials', {
                     method: 'POST',
                     headers: getAuthHeaders(),
                     body: JSON.stringify({
@@ -1448,39 +1491,349 @@ function printFilteredFaculty() {
 
 // SYNCHRONIZED DASHBOARD RENDER MONITOR ENGINE
 let dashboardListenersAdded = false;
+function getProgramFacultyList(programName) {
+    if (!programName) return [];
+    return facultyRegistry.filter(faculty => {
+        const programNames = (faculty.program || '').split(',').map(name => name.trim()).filter(Boolean);
+        return programNames.includes(programName);
+    });
+}
+
+function countProgramSubjects(program) {
+    const subjects = program?.subjects || {};
+    let total = 0;
+    Object.values(subjects).forEach(yearGroup => {
+        Object.values(yearGroup || {}).forEach(semesterList => {
+            total += Array.isArray(semesterList) ? semesterList.length : 0;
+        });
+    });
+    return total;
+}
+
+function buildDashboardProgramChartData() {
+    const programEntries = Object.entries(State.db.programs || {});
+    return programEntries.map(([programKey, program]) => {
+        const programName = program?.name || programKey;
+        const facultyMembers = getProgramFacultyList(programName);
+        const edu = { baccalaureate: 0, masters: 0, doctorate: 0, postBaccalaureate: 0 };
+        const research = { production: 0, presentation: 0, publication: 0, citation: 0 };
+
+        facultyMembers.forEach(faculty => {
+            const attainment = faculty.educationalAttainment || {};
+            if (attainment.baccalaureate) edu.baccalaureate += 1;
+            if (attainment.masters) edu.masters += 1;
+            if (attainment.doctorate) edu.doctorate += 1;
+            if (attainment.postBaccalaureate) edu.postBaccalaureate += 1;
+
+            const facultyResearch = faculty.research || {};
+            research.production += Number(facultyResearch.production || 0);
+            research.presentation += Number(facultyResearch.presentation || 0);
+            research.publication += Number(facultyResearch.publication || 0);
+            research.citation += Number(facultyResearch.citation || 0);
+        });
+
+        return {
+            name: programName,
+            faculty: facultyMembers.length,
+            courses: countProgramSubjects(program),
+            sections: Array.isArray(program?.sections) ? program.sections.length : 0,
+            regular: facultyMembers.filter(f => String(f.employmentType || '').toLowerCase() === 'regular').length,
+            partTime: facultyMembers.filter(f => String(f.employmentType || '').toLowerCase().includes('part')).length,
+            education: edu,
+            research
+        };
+    });
+}
+
+function renderDashboardAnalyticsCharts() {
+    if (typeof Chart === 'undefined') return;
+
+    const chartState = window.__dashboardAnalyticsCharts || {};
+    const destroyCharts = () => {
+        Object.values(chartState).forEach(chart => chart && chart.destroy && chart.destroy());
+        window.__dashboardAnalyticsCharts = {};
+    };
+
+    const programData = buildDashboardProgramChartData();
+    if (!programData.length) {
+        destroyCharts();
+        return;
+    }
+
+    const labels = programData.map(item => item.name);
+
+    const renderChart = (canvasId, config) => {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return;
+        canvas.style.transform = 'none';
+        canvas.style.scale = '1';
+        canvas.style.transition = 'none';
+        canvas.style.transformOrigin = 'center center';
+        canvas.style.pointerEvents = 'none';
+        canvas.style.userSelect = 'none';
+        if (chartState[canvasId]) {
+            chartState[canvasId].destroy();
+        }
+        canvas.onmousemove = null;
+        canvas.onmouseenter = null;
+        canvas.onmouseleave = null;
+        canvas.onpointermove = null;
+        canvas.onpointerenter = null;
+        canvas.onpointerleave = null;
+
+        const safeConfig = {
+            ...config,
+            options: {
+                ...(config.options || {}),
+                events: [],
+                animation: { duration: 0 },
+                transitions: { active: { animation: { duration: 0 } } },
+                interaction: { mode: null, intersect: false },
+                hover: { mode: null, intersect: false },
+                onHover: () => undefined,
+                onLeave: () => undefined,
+                plugins: {
+                    ...(config.options && config.options.plugins ? config.options.plugins : {}),
+                    tooltip: { enabled: false },
+                    legend: { display: false }
+                }
+            }
+        };
+        chartState[canvasId] = new Chart(canvas, safeConfig);
+    };
+
+    renderChart('dashboard-program-faculty-chart', {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                label: 'Faculty Members',
+                data: programData.map(item => item.faculty),
+                backgroundColor: '#f59e0b',
+                hoverOffset: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 0 },
+            transitions: { active: { animation: { duration: 0 } } },
+            interaction: { mode: 'nearest', intersect: false },
+            hover: { mode: 'nearest', intersect: false },
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+        }
+    });
+
+    renderChart('dashboard-program-courses-chart', {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                label: 'Courses',
+                data: programData.map(item => item.courses),
+                backgroundColor: '#10b981',
+                hoverOffset: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 0 },
+            transitions: { active: { animation: { duration: 0 } } },
+            interaction: { mode: null, intersect: false },
+            hover: { mode: null, intersect: false },
+            events: [],
+            plugins: { legend: { display: false }, tooltip: { enabled: false } },
+            scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+        }
+    });
+
+    renderChart('dashboard-program-sections-chart', {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                label: 'Current Sections',
+                data: programData.map(item => item.sections),
+                backgroundColor: '#3b82f6',
+                hoverOffset: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 0 },
+            transitions: { active: { animation: { duration: 0 } } },
+            interaction: { mode: 'nearest', intersect: false },
+            hover: { mode: 'nearest', intersect: false },
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+        }
+    });
+
+    renderChart('dashboard-program-employment-chart', {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [
+                { label: 'Regular', data: programData.map(item => item.regular), backgroundColor: '#22c55e', hoverOffset: 0 },
+                { label: 'Part-Time', data: programData.map(item => item.partTime), backgroundColor: '#f97316', hoverOffset: 0 }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 0 },
+            transitions: { active: { animation: { duration: 0 } } },
+            interaction: { mode: 'nearest', intersect: false },
+            hover: { mode: null, intersect: false },
+            events: [],
+            plugins: { legend: { position: 'bottom' } },
+            scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+        }
+    });
+
+    renderChart('dashboard-program-education-chart', {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [
+                { label: 'Baccalaureate', data: programData.map(item => item.education.baccalaureate), backgroundColor: '#60a5fa', hoverOffset: 0 },
+                { label: 'Masters', data: programData.map(item => item.education.masters), backgroundColor: '#a78bfa', hoverOffset: 0 },
+                { label: 'Doctorate', data: programData.map(item => item.education.doctorate), backgroundColor: '#f472b6', hoverOffset: 0 },
+                { label: 'Post-Bacc', data: programData.map(item => item.education.postBaccalaureate), backgroundColor: '#34d399', hoverOffset: 0 }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 0 },
+            transitions: { active: { animation: { duration: 0 } } },
+            interaction: { mode: 'nearest', intersect: false },
+            hover: { mode: null, intersect: false },
+            events: [],
+            plugins: { legend: { position: 'bottom' } },
+            scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+        }
+    });
+
+    renderChart('dashboard-program-research-chart', {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [
+                { label: 'Production', data: programData.map(item => item.research.production), backgroundColor: '#fbbf24', hoverOffset: 0 },
+                { label: 'Presentation', data: programData.map(item => item.research.presentation), backgroundColor: '#38bdf8', hoverOffset: 0 },
+                { label: 'Publication', data: programData.map(item => item.research.publication), backgroundColor: '#fb7185', hoverOffset: 0 },
+                { label: 'Citation', data: programData.map(item => item.research.citation), backgroundColor: '#4ade80', hoverOffset: 0 }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 0 },
+            transitions: { active: { animation: { duration: 0 } } },
+            interaction: { mode: 'nearest', intersect: false },
+            hover: { mode: null, intersect: false },
+            events: [],
+            plugins: { legend: { position: 'bottom' } },
+            scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+        }
+    });
+
+    window.__dashboardAnalyticsCharts = chartState;
+}
+
 function renderDashboard() {
+    const cardTotalFaculty = document.getElementById('card-total-faculty');
     const cardActiveFaculty = document.getElementById('card-active-faculty') || document.getElementById('dash-prof-count');
     const cardInactiveFaculty = document.getElementById('card-inactive-faculty');
     const cardPrograms = document.getElementById('card-active-programs') || document.getElementById('dash-prog-count');
     const cardLoads = document.getElementById('card-assigned-loads') || document.getElementById('dash-load-count');
     const cardConflicts = document.getElementById('card-conflicts-detected') || document.getElementById('dash-conflict-count');
 
-    // Derive absolute values directly from master registry arrays maps
     const activeCount = facultyRegistry.filter(f => f.active !== false).length;
     const inactiveCount = facultyRegistry.filter(f => f.active === false).length;
+    const totalFaculty = facultyRegistry.length;
+    const programCount = Object.keys(State.db.programs || {}).length;
+    const loadCount = State.db.loads.length;
+    const conflictCount = 0;
 
+    if (cardTotalFaculty) cardTotalFaculty.innerText = totalFaculty;
     if (cardActiveFaculty) cardActiveFaculty.innerText = activeCount;
     if (cardInactiveFaculty) cardInactiveFaculty.innerText = inactiveCount;
+    if (cardPrograms) cardPrograms.innerText = programCount;
+    if (cardLoads) cardLoads.innerText = loadCount;
+    if (cardConflicts) cardConflicts.innerText = conflictCount;
 
-    // Attach click listeners to open modal for active/inactive faculty
-    if (!dashboardListenersAdded) {
-        if (cardActiveFaculty) {
-            cardActiveFaculty.style.cursor = 'pointer';
-            cardActiveFaculty.addEventListener('click', () => openFacultyModal('Active'));
+    const analyticsPanel = document.getElementById('dashboard-analytics-panel');
+    const analyticsToggle = document.getElementById('dashboard-analytics-toggle');
+    const analyticsClose = document.getElementById('dashboard-analytics-close');
+    const analyticsTotalFaculty = document.getElementById('analytics-total-faculty');
+    const analyticsActiveFaculty = document.getElementById('analytics-active-faculty');
+    const analyticsInactiveFaculty = document.getElementById('analytics-inactive-faculty');
+    const analyticsActivePrograms = document.getElementById('analytics-active-programs');
+    const analyticsAssignedLoads = document.getElementById('analytics-assigned-loads');
+    const analyticsPrograms = document.getElementById('dashboard-analytics-programs');
+
+    if (analyticsTotalFaculty) analyticsTotalFaculty.innerText = totalFaculty;
+    if (analyticsActiveFaculty) analyticsActiveFaculty.innerText = activeCount;
+    if (analyticsInactiveFaculty) analyticsInactiveFaculty.innerText = inactiveCount;
+    if (analyticsActivePrograms) analyticsActivePrograms.innerText = programCount;
+    if (analyticsAssignedLoads) analyticsAssignedLoads.innerText = loadCount;
+
+    if (analyticsPrograms) {
+        const programs = Object.entries(State.db.programs || {}).map(([id, prog]) => ({
+            id,
+            name: prog.name || id,
+            faculty: getProgramFacultyList(prog.name || id).length,
+            sections: (prog.sections || []).length,
+            subjects: countProgramSubjects(prog)
+        }));
+
+        if (programs.length > 0) {
+            analyticsPrograms.innerHTML = programs.map(p => `
+                <div class="rounded-2xl border border-slate-700 bg-slate-800 p-4">
+                    <div class="flex items-center justify-between gap-3">
+                        <p class="text-sm font-semibold text-white">${p.name}</p>
+                        <span class="rounded-full bg-slate-700 px-2 py-1 text-[10px] uppercase tracking-wide text-slate-200">${p.sections} sections</span>
+                    </div>
+                    <div class="mt-3 flex gap-4 text-xs text-slate-300">
+                        <span>👥 ${p.faculty} faculty</span>
+                        <span>📚 ${p.subjects} subjects</span>
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            analyticsPrograms.innerHTML = '<p class="text-sm text-slate-300">No program analytics available yet.</p>';
         }
-        if (cardInactiveFaculty) {
-            cardInactiveFaculty.style.cursor = 'pointer';
-            cardInactiveFaculty.addEventListener('click', () => openFacultyModal('Inactive'));
-        }
-        dashboardListenersAdded = true;
     }
-    if (cardPrograms) cardPrograms.innerText = Object.keys(State.db.programs).length;
-    if (cardLoads) cardLoads.innerText = State.db.loads.length;
-    if (cardConflicts) cardConflicts.innerText = 0;
+
+    if (analyticsToggle && analyticsClose && analyticsPanel) {
+        const setAnalyticsVisibility = (show) => {
+            analyticsPanel.classList.toggle('hidden', !show);
+            analyticsToggle.innerHTML = show
+                ? '<i data-lucide="x" class="w-4 h-4"></i><span>Hide Analytics</span>'
+                : '<i data-lucide="bar-chart-3" class="w-4 h-4"></i><span>Analytics</span>';
+            if (window.lucide) window.lucide.createIcons();
+        };
+
+        if (!analyticsToggle.dataset.bound) {
+            analyticsToggle.addEventListener('click', () => {
+                const next = analyticsPanel.classList.contains('hidden');
+                setAnalyticsVisibility(next);
+            });
+            analyticsClose.addEventListener('click', () => setAnalyticsVisibility(false));
+            analyticsToggle.dataset.bound = 'true';
+        }
+    }
+
+    renderDashboardAnalyticsCharts();
+
     const currentSyEl = document.getElementById('dashboard-current-sy');
     if (currentSyEl) currentSyEl.innerText = State.db.schoolYears[0] || 'N/A';
 
-    // Render active programs list
     const programsList = document.getElementById('dashboard-programs-list');
     if (programsList) {
         const programs = Object.entries(State.db.programs).map(([id, prog]) => ({
@@ -3710,7 +4063,7 @@ function refreshTimeSlots() {
     }).join('') || '<option disabled>No preferred times on this day</option>';
 }
 
-function saveLoad() {
+async function saveLoad() {
     const time = document.getElementById('ld-time')?.value;
     const sub = document.getElementById('ld-sub')?.value;
     const day = document.getElementById('ld-day')?.value;
@@ -3728,7 +4081,6 @@ function saveLoad() {
         return;
     }
 
-    // Subject Unit Validation
     const yearKey = getYearLevelFromSection(sec || '');
     let semKey = '1st Semester';
     if (semester === '2') semKey = '2nd Semester';
@@ -3759,14 +4111,12 @@ function saveLoad() {
         }
     }
 
-    // Check classification-based load limits
     const validation = canAssignLoad(prof, loadCategory, units);
     if (!validation.allowed) {
         showErrorModal('Load Limit Exceeded', validation.reason);
         return;
     }
 
-    // Check for schedule conflicts
     const load = {
         id: currentLoadEditId || Date.now(),
         prof, sub, units, loadType: loadCategory, sec, room, building, day, time, sy, semester,
@@ -3796,11 +4146,16 @@ function saveLoad() {
         State.db.loads.push(load);
     }
 
-    currentLoadEditId = null;
-    persistState();
-    document.getElementById('modal-load').classList.add('hidden');
-    showBanner(`Load assignment saved successfully for ${prof}.`, 'success');
-    renderPageSections();
+    try {
+        await persistLoadToAPI(load);
+        currentLoadEditId = null;
+        await persistState();
+        document.getElementById('modal-load')?.classList.add('hidden');
+        showBanner(`Load assignment saved successfully for ${prof}.`, 'success');
+        renderPageSections();
+    } catch (error) {
+        showBanner('Could not save the workload to the database. Your local view was not updated.', 'error');
+    }
 }
 
 function editLoad(id) { openLoadModal(id); }

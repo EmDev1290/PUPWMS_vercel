@@ -5,7 +5,7 @@ const verifyToken = require('../middleware/auth');
 
 // Note: getInitialState might need to be accessible before full login in some apps, 
 // but since this is an admin dashboard it should probably be protected.
-router.get('/initial-state', verifyToken, apiController.getInitialState);
+router.get('/initial-state', apiController.getInitialState);
 
 router.post('/rooms', verifyToken, apiController.createRoom);
 router.delete('/rooms', verifyToken, apiController.deleteRoom);
