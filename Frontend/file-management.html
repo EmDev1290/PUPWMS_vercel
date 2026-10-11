@@ -25,7 +25,6 @@
                             <p class="text-[10px] text-gray-200">Academic Management</p>
                         </div>
                     </div>
-                    <a href="index.html" class="text-gray-100 hover:text-gray-200 text-xs tracking-wide uppercase">LOGOUT</a>
                 </div>
                 <nav class="space-y-1 px-4 py-4 flex-shrink-0 overflow-y-auto custom-scrollbar">
                     <a href="dashboard.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
@@ -70,9 +69,12 @@
                     </a>
                 </nav>
             </div>
-            <div id="sidebar-user-block" class="p-4 bg-[#710000] border-t border-[#660000] cursor-pointer hover:bg-[#5a0000] transition-colors flex-shrink-0">
-                <p class="text-[11px] uppercase tracking-widest text-gray-300">User</p>
-                <p class="mt-1 font-semibold text-white">Academic Aide</p>
+            <div id="sidebar-user-block" class="p-2.5 bg-[#710000] border-t border-[#660000] cursor-pointer hover:bg-[#5a0000] transition-colors flex items-center justify-between gap-3">
+                <div class="min-w-0">
+                    <p class="text-[9px] uppercase tracking-widest text-gray-300">ACADEMIC AIDE</p>
+                    <p class="mt-0.5 truncate text-sm font-semibold text-white">aide_pq</p>
+                </div>
+                <a href="index.html" class="flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide text-gray-100 hover:text-yellow-200">LOGOUT</a>
             </div>
         </aside>
 
@@ -301,6 +303,12 @@
 
         // Upload single file via Multer API
         async function uploadFile(file) {
+            if (!isAcademicHeadUser()) {
+                queueApprovalAction('file_upload', { fileName: file.name });
+                showBanner(`Upload for "${file.name}" is pending Academic Head approval.`, 'info');
+                return;
+            }
+
             const formData = new FormData();
             formData.append('file', file);
 
@@ -324,6 +332,12 @@
 
         // Delete Excel file
         async function deleteFile(filename) {
+            if (!isAcademicHeadUser()) {
+                queueApprovalAction('file_delete', { fileName: filename });
+                showBanner(`Deletion for "${filename}" is pending Academic Head approval.`, 'info');
+                return;
+            }
+
             if (!confirm(`Are you sure you want to delete "${filename}"? This will remove it from System_content_info/.`)) return;
 
             try {
@@ -347,6 +361,12 @@
 
         // Trigger POST /api/scan-system-files
         async function triggerDatabaseScan() {
+            if (!isAcademicHeadUser()) {
+                queueApprovalAction('database_scan', { requestedAt: new Date().toISOString() });
+                showBanner('Database sync requested and sent to the Academic Head for approval.', 'info');
+                return;
+            }
+
             const overlay = document.getElementById('scan-loading-overlay');
             const panel = document.getElementById('scan-loading-panel');
             if (overlay && panel) {

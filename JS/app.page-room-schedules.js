@@ -28,6 +28,10 @@ document.addEventListener('DOMContentLoaded', function () {
     } else {
         document.addEventListener('appStateLoaded', init);
     }
+
+    window.addEventListener('facultyStatusChanged', () => {
+        renderRoomSchedulePreview();
+    });
 });
 
 function renderRoomDropdownForSchedules() {

@@ -43,6 +43,13 @@ function initGlobalDropdowns() {
     updateProfessorDropdown();
     if (profSelect) {
         profSelect.onchange = () => {
+            const selectedProf = facultyRegistry.find(f => f.name === profSelect.value);
+            if (selectedProf && selectedProf.active === false) {
+                showBanner(`${selectedProf.name} is inactive and cannot be assigned loads.`, 'error');
+                const firstActive = facultyRegistry.find(f => f.active !== false);
+                if (firstActive) profSelect.value = firstActive.name;
+                return;
+            }
             updateLoadCategoryDropdown();
             populateModalSubjects();
             updatePreferredHints();
@@ -72,15 +79,37 @@ function updateProfessorDropdown() {
         if (!f.program) return false;
         const programs = f.program.split(',').map(p => p.trim().toLowerCase());
         return programs.includes(activeProgram.toLowerCase()) || programs.includes('general education');
-    }).sort((a, b) => a.name.localeCompare(b.name));
+    }).sort((a, b) => {
+        // Active professors first, then alphabetical
+        const aActive = a.active !== false;
+        const bActive = b.active !== false;
+        if (aActive !== bActive) return aActive ? -1 : 1;
+        return a.name.localeCompare(b.name);
+    });
 
-    profSelect.innerHTML = filteredProfs.length 
-        ? filteredProfs.map(f => {
-            const isGenEd = f.program.toLowerCase().includes('general education');
-            const label = isGenEd ? `${f.name} (GE)` : f.name;
-            return `<option value="${f.name}">${label}</option>`;
-        }).join('')
-        : '<option disabled>No professors available for this program</option>';
+    if (!filteredProfs.length) {
+        profSelect.innerHTML = '<option disabled selected>No professors available for this program</option>';
+        updateLoadCategoryDropdown();
+        populateModalSubjects();
+        return;
+    }
+
+    profSelect.innerHTML = filteredProfs.map(f => {
+        const isGenEd = f.program.toLowerCase().includes('general education');
+        const isInactive = f.active === false;
+        const label = `${f.name}${isGenEd ? ' (GE)' : ''}${isInactive ? ' (Inactive - Disabled)' : ''}`;
+        return `<option value="${f.name}" ${isInactive ? 'disabled class="text-gray-400 bg-gray-100 italic cursor-not-allowed"' : ''}>${label}</option>`;
+    }).join('');
+
+    // Ensure the selected professor is active
+    const currentVal = profSelect.value;
+    const currentSelectedProf = facultyRegistry.find(f => f.name === currentVal);
+    if (!currentSelectedProf || currentSelectedProf.active === false) {
+        const firstActive = filteredProfs.find(f => f.active !== false);
+        if (firstActive) {
+            profSelect.value = firstActive.name;
+        }
+    }
         
     updateLoadCategoryDropdown();
     populateModalSubjects();
@@ -180,6 +209,53 @@ function updatePreferredHints() {
     }
 }
 
+function getCurrentSubjectLoadContext() {
+    const program = State.db.programs[State.activeProgram];
+    const section = document.getElementById('load-section-selector')?.value;
+    const semester = document.getElementById('load-semester-selector')?.value || '1';
+    const year = document.getElementById('sy-selector')?.value || State.db.schoolYears?.[0];
+    const semesterKey = semester === '2' ? '2nd Semester' : semester === '3' ? 'Summer Term' : '1st Semester';
+    const yearKey = getYearLevelFromSection(section || '');
+    const subjectName = document.getElementById('ld-sub')?.value;
+    const subject = program?.subjects?.[yearKey]?.[semesterKey]?.find(item => item.name === subjectName);
+    const loads = (State.db.loads || []).filter(load => load.sub === subjectName
+        && load.sec === section
+        && load.program === State.activeProgram
+        && load.sy === year
+        && String(load.semester || '1') === String(semester));
+    return { subject, loads, semester, section, year };
+}
+
+function updateSelectedSubjectHours() {
+    const componentSelect = document.getElementById('ld-component-type');
+    const hoursInput = document.getElementById('ld-units');
+    if (!componentSelect || !hoursInput) return;
+
+    const { subject, loads } = getCurrentSubjectLoadContext();
+    if (!subject) return;
+
+    const capacity = getSubjectScheduledComponents(subject, loads, currentLoadEditId);
+    const remaining = capacity.remaining;
+    const availableByType = {
+        Lec: remaining.lec,
+        Lab: remaining.lab,
+        'Lec/Lab': remaining.lec > 0 && remaining.lab > 0 ? remaining.lec + remaining.lab : 0
+    };
+    Array.from(componentSelect.options).forEach(option => {
+        option.disabled = availableByType[option.value] <= 0;
+    });
+    if (componentSelect.selectedOptions[0]?.disabled) {
+        const nextAvailable = Array.from(componentSelect.options).find(option => !option.disabled);
+        if (nextAvailable) componentSelect.value = nextAvailable.value;
+    }
+
+    const selectedType = componentSelect.value;
+    const availableHours = availableByType[selectedType] || 0;
+    hoursInput.max = String(Math.max(1, availableHours));
+    hoursInput.value = String(availableHours);
+    hoursInput.dataset.componentRemaining = String(availableHours);
+}
+
 // Generate rows and overlay scheduled workload block cards
 function renderTimetableGrid() {
     const container = document.getElementById('calendar-grid-body');
@@ -247,8 +323,22 @@ function renderTimetableGrid() {
             const left = `calc(80px + ${dayIndex * 100 / 7}%)`;
             const width = `calc(100% / 7 - 4px)`;
             
+            const isBridging = typeof getSubjectBridgingStatus === 'function'
+                ? getSubjectBridgingStatus(load.program || State.activeProgram, load.sub)
+                : false;
+            const bridgingBadge = isBridging 
+                ? '<span class="inline-block bg-orange-100 text-orange-800 border border-orange-300 px-1 py-0.5 rounded text-[8px] font-black uppercase tracking-wider mr-1">BRIDGING</span>' 
+                : '';
+            const cleanSub = String(load.sub || '').replace(/^\[\s*BRIDGING\s*\]\s*/i, '');
+            const compHours = Number(load.units) || 0;
+            const compType = load.component_type || 'Lec';
+            const bldgRoom = typeof formatBuildingRoom === 'function' ? formatBuildingRoom(load) : `${load.building || ''} - ${load.room || ''}`;
+            const loadType = load.loadType || 'Regular Load';
+
             let bgClass = 'bg-slate-50 text-slate-800 border-slate-200';
-            if (load.loadType === 'Regular Load') {
+            if (isBridging) {
+                bgClass = 'bg-orange-50 text-orange-950 border-orange-200 hover:bg-orange-100/80';
+            } else if (load.loadType === 'Regular Load') {
                 bgClass = 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100/80';
             } else if (load.loadType === 'Part-Time Load') {
                 bgClass = 'bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100/80';
@@ -261,11 +351,13 @@ function renderTimetableGrid() {
                      class="absolute rounded-xl p-2 border text-left shadow-sm transition-all hover:shadow-md cursor-pointer overflow-hidden z-30 flex flex-col justify-between ${bgClass}"
                      style="top: ${top}px; height: ${height}px; left: ${left}; width: ${width}; margin-left: 2px; margin-top: 1px;">
                     <div>
-                        <div class="text-[10px] font-bold leading-tight text-slate-900">${load.sub}</div>
-                        <div class="text-[9px] font-medium opacity-90 mt-0.5 text-slate-700 truncate">${load.prof}</div>
-                        <div class="text-[9px] font-semibold opacity-75 mt-1 text-slate-600 truncate">📍 ${load.room}</div>
+                        <div class="text-[10px] font-bold leading-tight text-slate-900">${bridgingBadge}${escapeHtml(cleanSub)}</div>
+                        <div class="text-[9px] font-semibold text-slate-700 leading-tight mt-0.5">${escapeHtml(loadType)}</div>
+                        <div class="text-[9px] text-slate-600 leading-tight mt-0.5">${escapeHtml(load.sec || '')}</div>
+                        <div class="text-[9px] text-slate-600 leading-tight mt-0.5"><span class="font-bold text-slate-800">${compHours} hours</span> - <span class="rounded bg-white/80 border border-slate-200 px-1 font-semibold text-[8px] text-slate-700">${escapeHtml(compType)}</span></div>
+                        <div class="text-[9px] text-slate-600 font-medium leading-tight mt-0.5 truncate">${escapeHtml(bldgRoom)}</div>
                     </div>
-                    <div class="text-[8px] font-bold opacity-60 text-right mt-1 text-slate-500">${load.time}</div>
+                    <div class="text-[8px] font-bold text-right mt-1 text-slate-700">${escapeHtml(load.time || '')}</div>
                 </div>
             `;
         });
@@ -286,6 +378,8 @@ function selectCalendarCell(day, startStr) {
     
     // Reset inputs
     document.getElementById('ld-units').value = 3;
+    const componentSelect = document.getElementById('ld-component-type');
+    if (componentSelect) componentSelect.value = 'Lec';
     
     // Hide edit actions
     document.getElementById('form-edit-actions').classList.add('hidden');
@@ -319,6 +413,9 @@ function editSelectedLoad(id, event) {
     
     populateModalSubjects();
     document.getElementById('ld-sub').value = load.sub;
+    const componentSelect = document.getElementById('ld-component-type');
+    if (componentSelect) componentSelect.value = load.component_type || 'Lec';
+    updateSelectedSubjectHours();
     
     document.getElementById('ld-building').value = load.building;
     updateRoomByBuilding();
@@ -341,6 +438,8 @@ function clearFormSelection() {
     document.getElementById('panel-form-title').innerText = 'Assign Workload';
     document.getElementById('save-load-button').innerText = 'Apply Load';
     document.getElementById('ld-units').value = 3;
+    const componentSelect = document.getElementById('ld-component-type');
+    if (componentSelect) componentSelect.value = 'Lec';
 
     // Hide edit actions
     document.getElementById('form-edit-actions').classList.add('hidden');
@@ -361,7 +460,7 @@ async function deleteSelectedLoad() {
         await deleteLoadFromAPI(load.id);
         State.db.loads = State.db.loads.filter(l => String(l.id) !== String(currentLoadEditId));
         await persistState();
-        renderTimetableGrid();
+        renderPageSections();
         clearFormSelection();
         showBanner('Workload deleted successfully!', 'success');
     } catch (error) {
@@ -378,6 +477,7 @@ async function saveLoad() {
 
     const prof = document.getElementById('ld-prof')?.value;
     const sub = document.getElementById('ld-sub')?.value;
+    const componentType = document.getElementById('ld-component-type')?.value;
     const loadCategory = document.getElementById('ld-category')?.value;
     const building = document.getElementById('ld-building')?.value;
     const room = document.getElementById('ld-room')?.value;
@@ -387,8 +487,14 @@ async function saveLoad() {
     const semester = document.getElementById('load-semester-selector')?.value || '1';
     const section = document.getElementById('load-section-selector')?.value;
 
-    if (!prof || !sub || !loadCategory || !building || !room || !section) {
+    if (!prof || !sub || !componentType || !loadCategory || !building || !room || !section) {
         showBanner('Please fill out all assignment fields.', 'error');
+        return;
+    }
+
+    const faculty = facultyRegistry.find(f => f.name === prof || String(f.id) === String(prof));
+    if (faculty && faculty.active === false) {
+        showBanner(`Cannot assign load: ${faculty.name} is currently inactive and cannot be scheduled.`, 'error');
         return;
     }
 
@@ -403,34 +509,34 @@ async function saveLoad() {
 
     const timeRangeStr = `${selectedTime} - ${formatTime(endMinutes)}`;
 
-    // Subject Unit Validation
-    const yearKey = getYearLevelFromSection(section || '');
-    let semKey = '1st Semester';
-    if (semester === '2') semKey = '2nd Semester';
-    else if (semester === '3') semKey = 'Summer Term';
-
-    const programData = State.db.programs[State.activeProgram];
-    if (programData && programData.subjects && programData.subjects[yearKey] && programData.subjects[yearKey][semKey]) {
-        const subjectData = programData.subjects[yearKey][semKey].find(s => s.name === sub);
-        if (subjectData) {
-            const assignedUnits = State.db.loads
-                .filter(l => 
-                    l.sub === sub && 
-                    l.sec === section && 
-                    l.sy === sy &&
-                    String(l.semester) === String(semester) &&
-                    String(l.id) !== String(currentLoadEditId)
-                )
-                .reduce((total, l) => total + Number(l.units || 0), 0);
-            
-            if (assignedUnits + units > subjectData.units) {
-                if (typeof showErrorModal === 'function') {
-                    showErrorModal('Subject Unit Limit Exceeded', `The subject ${sub} only has ${subjectData.units - assignedUnits} units remaining for this section. You tried to assign ${units} units.`);
-                } else {
-                    showBanner(`Subject Unit Limit Exceeded for ${sub}`, 'error');
-                }
-                return;
-            }
+    const { subject: subjectData, loads: subjectLoads } = getCurrentSubjectLoadContext();
+    if (!subjectData) {
+        showBanner(`Subject details for ${sub} were not found.`, 'error');
+        return;
+    }
+    const subjectHours = getSubjectHourParts(subjectData);
+    const capacity = getSubjectScheduledComponents(subjectData, subjectLoads, currentLoadEditId);
+    const showComponentError = (title, message) => {
+        if (typeof showErrorModal === 'function') showErrorModal(title, message);
+        else showBanner(message, 'error');
+    };
+    if (componentType === 'Lec' && units > capacity.remaining.lec) {
+        showComponentError('Lecture Hours Limit Reached', `Lecture hours limit reached (${capacity.scheduled.lec}/${subjectHours.lec} hrs completed). Only ${capacity.remaining.lec} lecture hours remain.`);
+        return;
+    }
+    if (componentType === 'Lab' && units > capacity.remaining.lab) {
+        showComponentError('Laboratory Hours Limit Reached', `Laboratory hours limit reached (${capacity.scheduled.lab}/${subjectHours.lab} hrs completed). Only ${capacity.remaining.lab} laboratory hours remain.`);
+        return;
+    }
+    if (componentType === 'Lec/Lab') {
+        if (capacity.remaining.lec <= 0 || capacity.remaining.lab <= 0) {
+            showComponentError('Combined Hours Not Available', `A combined Lec/Lab block requires remaining lecture and laboratory hours (${capacity.remaining.lec} Lec, ${capacity.remaining.lab} Lab remain).`);
+            return;
+        }
+        const combinedRemaining = capacity.remaining.lec + capacity.remaining.lab;
+        if (units !== combinedRemaining) {
+            showComponentError('Combined Hours Must Match', `A Lec/Lab block must schedule all remaining components together: ${capacity.remaining.lec} Lec + ${capacity.remaining.lab} Lab = ${combinedRemaining} hours.`);
+            return;
         }
     }
 
@@ -478,6 +584,7 @@ async function saveLoad() {
         prof,
         sub,
         units,
+        component_type: componentType,
         loadType: loadCategory,
         sec: section,
         room,
@@ -503,7 +610,7 @@ async function saveLoad() {
     try {
         await persistLoadToAPI(load);
         await persistState();
-        renderTimetableGrid();
+        renderPageSections();
         clearFormSelection();
         showBanner('Workload assigned successfully!', 'success');
     } catch (error) {
@@ -555,4 +662,10 @@ document.addEventListener('DOMContentLoaded', function () {
     } else {
         document.addEventListener('appStateLoaded', runInitialization);
     }
+
+    // 3. React to faculty active/inactive status changes across tabs/modules
+    window.addEventListener('facultyStatusChanged', () => {
+        updateProfessorDropdown();
+        renderTimetableGrid();
+    });
 });

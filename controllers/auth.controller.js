@@ -41,15 +41,10 @@ exports.login = async (req, res) => {
 
 exports.forgotPassword = async (req, res) => {
     try {
-        const { username, newPassword } = req.body;
+        const { username, idNumber, fullName, newPassword } = req.body;
         
-        // Removed the hardcoded SAMPLE_PROFESSOR_IDS backdoor
-        // In a real application, you would verify an email token or let only admins do this.
-        // For demonstration, we allow resetting if they just provide the username (though this is still insecure).
-        // A better approach is admin-only, but let's just secure the password limits first.
-        
-        if (!username || !newPassword) {
-            return res.status(400).json({ error: 'Username and new password are required' });
+        if (!username || !idNumber || !fullName || !newPassword) {
+            return res.status(400).json({ error: 'Username, ID Number, Full Name, and new password are required' });
         }
 
         // Updated password policy: at least 8 characters
@@ -60,6 +55,14 @@ exports.forgotPassword = async (req, res) => {
         const user = await knex('users').where({ username }).first();
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
+        }
+
+        // Verify ID Number and Full Name (display_name)
+        if (user.id_number !== idNumber) {
+            return res.status(400).json({ error: 'The provided ID Number does not match our records.' });
+        }
+        if (user.display_name.toLowerCase() !== fullName.toLowerCase()) {
+            return res.status(400).json({ error: 'The provided Full Name does not match our records.' });
         }
 
         await knex('users').where({ username }).update({ password_hash: bcrypt.hashSync(newPassword, 10) });

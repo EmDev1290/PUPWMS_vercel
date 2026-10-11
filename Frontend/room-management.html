@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -24,7 +24,6 @@
                             <p class="text-[10px] text-gray-200">Academic Management</p>
                         </div>
                     </div>
-                    <a href="index.html" class="text-gray-100 hover:text-gray-200 text-xs tracking-wide uppercase">LOGOUT</a>
                 </div>
                 <nav class="space-y-1 px-4 py-4 flex-shrink-0 overflow-y-auto custom-scrollbar">
                     <a href="dashboard.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
@@ -70,9 +69,12 @@
                 </nav>
             </div>
             
-            <div class="p-4 bg-[#710000] border-t border-[#660000] flex-shrink-0">
-                <p class="text-[11px] uppercase tracking-widest text-gray-300">User</p>
-                <p class="mt-1 font-semibold text-white">Academic Aide</p>
+            <div class="p-2.5 bg-[#710000] border-t border-[#660000] flex items-center justify-between gap-3 flex-shrink-0">
+                <div class="min-w-0">
+                    <p class="text-[9px] uppercase tracking-widest text-gray-300">ACADEMIC AIDE</p>
+                    <p class="mt-0.5 truncate text-sm font-semibold text-white">aide_pq</p>
+                </div>
+                <a href="index.html" class="flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide text-gray-100 hover:text-yellow-200">LOGOUT</a>
             </div>
         </aside>
 
@@ -83,8 +85,8 @@
                         <h2 class="text-3xl font-bold text-gray-900">Room Management</h2>
                         <p class="text-sm text-gray-500 mt-2">View and manage rooms for Main and New buildings.</p>
                     </div>
-                    <button onclick="openAddRoomModal()" class="px-4 py-2 rounded-2xl bg-[#7f0000] text-white text-sm font-semibold hover:bg-[#660000] flex items-center gap-2">
-                        <i data-lucide="plus-circle" class="w-4 h-4"></i>Add Room
+                    <button id="add-room-button" onclick="openAddRoomModal()" class="px-4 py-2 rounded-2xl bg-[#7f0000] text-white text-sm font-semibold hover:bg-[#660000] flex items-center gap-2">
+                        <i data-lucide="plus-circle" class="w-4 h-4"></i><span>Add Room</span>
                     </button>
                 </div>
             </div>
@@ -128,11 +130,11 @@
             </div>
             <div class="space-y-4">
                 <div>
-                    <label class="block text-xs font-semibold text-slate-600 mb-1">Room Name</label>
+                    <label for="room-name" class="block text-xs font-semibold text-slate-600 mb-1">Room Name</label>
                     <input id="room-name" type="text" placeholder="e.g., Room A101, Lab A" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]" />
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-slate-600 mb-1">Building</label>
+                    <label for="room-building" class="block text-xs font-semibold text-slate-600 mb-1">Building</label>
                     <select id="room-building" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]">
                         <option value="Main Building">Main Building</option>
                         <option value="New Building">New Building</option>

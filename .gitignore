@@ -1,6 +1,9 @@
-
+node_modules/
+node_modules
+.env
+.env.*
+!.env.example
+*.log
+logs/
 *.mp4
-
-*.mp4
-
-*.mp4
+diff_output.txt

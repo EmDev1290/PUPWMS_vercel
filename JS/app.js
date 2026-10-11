@@ -3,95 +3,7 @@
  */
 
 // MASTER FACULTY REGISTRY DATA MODEL
-const facultyRegistry = [
-    {
-        id: "prof-jefferson",
-        name: "Sir Jefferson",
-        baseDesignation: "Instructor I",
-        program: "Information Technology",
-        employmentType: "Regular",
-        classification: "Designee",
-        classificationRank: "instructor",
-        active: true,
-        educationalAttainment: {
-            baccalaureate: "BS Information Technology",
-            masters: "MSc Computer Science",
-            doctorate: "",
-            postBaccalaureate: ""
-        },
-        licenseNumber: "LIC-9134",
-        specialization: "Systems Analysis",
-        nationalCertificate: "NC II",
-        courseHandle: {
-            genEd: "Math",
-            coreSubject: "IT102",
-            professionalSubject: "Software Engineering",
-            technicalSubject: "Programming"
-        },
-        research: { production: "2", presentation: "3", publication: "1", citation: "8" },
-        extension: "Community IT Training",
-        natureOfAppointment: "Full-time",
-        remarks: "In good standing"
-    },
-    {
-        id: "prof-delacruz",
-        name: "Dr. Maria Dela Cruz",
-        baseDesignation: "Head of Academic Affairs",
-        program: "Information Technology",
-        employmentType: "Regular",
-        classification: "Director",
-        classificationRank: "",
-        active: true,
-        educationalAttainment: {
-            baccalaureate: "BS Computer Science",
-            masters: "MEd Curriculum",
-            doctorate: "PhD Educational Leadership",
-            postBaccalaureate: ""
-        },
-        licenseNumber: "LIC-7201",
-        specialization: "Database Systems",
-        nationalCertificate: "NC III",
-        courseHandle: {
-            genEd: "English",
-            coreSubject: "DB Systems",
-            professionalSubject: "Database Design",
-            technicalSubject: "SQL Programming"
-        },
-        research: { production: "4", presentation: "2", publication: "2", citation: "15" },
-        extension: "Research mentorship",
-        natureOfAppointment: "Full-time",
-        remarks: "Academic leader"
-    },
-    {
-        id: "prof-santos",
-        name: "Prof. Ricardo Santos",
-        baseDesignation: "Regular Lecturer",
-        program: "Computer Engineering",
-        employmentType: "Regular",
-        classification: "Regular",
-        classificationRank: "",
-        active: true,
-        educationalAttainment: {
-            baccalaureate: "BSE Computer Engineering",
-            masters: "MEng Electronics",
-            doctorate: "",
-            postBaccalaureate: ""
-        },
-        licenseNumber: "LIC-4485",
-        specialization: "Microprocessors",
-        nationalCertificate: "NC IV",
-        courseHandle: {
-            genEd: "Physics",
-            coreSubject: "Microprocessor Systems",
-            professionalSubject: "Embedded Systems",
-            technicalSubject: "Circuit Design"
-        },
-        research: { production: "1", presentation: "1", publication: "0", citation: "2" },
-        extension: "Technical workshops",
-        natureOfAppointment: "Full-time",
-        remarks: "Consistent instructor"
-    }
-];
+const facultyRegistry = [];
 
 // RE-ORGANIZED DESIGNATION RANK SELECTION STRATEGY
 const designationOptions = [
@@ -171,116 +83,17 @@ const GLOBAL_MAX_LOAD_CAP = 45;
 
 // FIXED INITIAL PARAMETER SETTERS
 const State = window.State || {
-    activeProgram: 'Information Technology',
+    activeProgram: '',
     subjectSemesterFilter: 'All',
     facultyTypeFilter: 'All',
-    facultyFilter: 'all',          // Tracks classification: 'all', 'regular', 'designee', 'part-time'
-    facultyStatusFilter: 'all',    // Tracks status toggle: 'all', 'active', 'inactive'
+    facultyFilter: 'all',
+    facultyStatusFilter: 'all',
     db: {
-        schoolYears: ['A.Y. 2024-2025', 'A.Y. 2025-2026', 'A.Y. 2026-2027'],
-        rooms: ['Room A101', 'Room B202', 'Lab A', 'Lab B', 'Audio Visual Room'],
-        buildings: ['Main Building', 'New Building'],
-        programs: {
-            'Information Technology': {
-                profs: ['Sir Jefferson', 'Dr. Maria Dela Cruz'],
-                sections: ['BSIT 1-1', 'BSIT 2-1', 'BSIT 3-1'],
-                subjects: {
-                    "1st Year": {
-                        "1st Semester": [
-                            { name: "IT101 - Introduction to Computing", units: 3 },
-                            { name: "PATHFIT 1 - Movement Competency Training", units: 2 }
-                        ],
-                        "2nd Semester": [
-                            { name: "IT102 - Computer Programming 1", units: 3 },
-                            { name: "IT103 - Discrete Structures", units: 3 }
-                        ]
-                    },
-                    "2nd Year": {
-                        "1st Semester": [
-                            { name: "IT201 - Data Structures and Algorithms", units: 3 },
-                            { name: "IT202 - Object-Oriented Programming", units: 3 }
-                        ],
-                        "2nd Semester": [
-                            { name: "IT203 - Web Systems and Technologies", units: 3 },
-                            { name: "IT204 - Computer Architecture and Organization", units: 3 }
-                        ],
-                        "Summer Term": [
-                            { name: "IT-INT1 - Industry Practicum 1", units: 2 }
-                        ]
-                    },
-                    "3rd Year": {
-                        "1st Semester": [
-                            { name: "IT311 - Database Systems", units: 3 },
-                            { name: "IT312 - Software Engineering 1", units: 3 }
-                        ],
-                        "2nd Semester": [
-                            { name: "IT313 - Information Assurance and Security", units: 3 }
-                        ]
-                    }
-                }
-            },
-            'Computer Engineering': {
-                profs: ['Prof. Ricardo Santos'],
-                sections: ['COE 3-1', 'COE 4-1'],
-                subjects: {
-                    "3rd Year": {
-                        "1st Semester": [
-                            { name: "COE311 - Digital Design", units: 4 }
-                        ],
-                        "2nd Semester": [
-                            { name: "COE221 - Electronics I", units: 3 }
-                        ]
-                    },
-                    "4th Year": {
-                        "1st Semester": [
-                            { name: "COE412 - Microprocessor Systems", units: 4 }
-                        ]
-                    }
-                }
-            },
-            'Hospitality Management': {
-                profs: ['Prof. Amelia Reyes'],
-                sections: ['HM 1-1', 'HM 2-1'],
-                subjects: {
-                    "1st Year": {
-                        "1st Semester": [
-                            { name: "HM101 - Food Service Management", units: 3 },
-                            { name: "PATHFIT 1 - Movement Competency Training", units: 2 }
-                        ]
-                    }
-                }
-            }
-        },
-        loads: [
-            {
-                id: 1,
-                prof: 'Dr. Maria Dela Cruz',
-                sub: 'IT311 - Database Systems',
-                units: 3,
-                loadType: 'Regular Load',
-                sec: 'BSIT 2-1',
-                room: 'Room A101',
-                building: 'Main Building',
-                day: 'Monday',
-                time: '08:00 AM - 11:00 AM',
-                sy: 'A.Y. 2024-2025',
-                program: 'Information Technology'
-            },
-            {
-                id: 2,
-                prof: 'Prof. Ricardo Santos',
-                sub: 'COE412 - Microprocessor Systems',
-                units: 4,
-                loadType: 'Regular Load',
-                sec: 'COE 4-1',
-                room: 'Room B202',
-                building: 'New Building',
-                day: 'Wednesday',
-                time: '10:00 AM - 02:00 PM',
-                sy: 'A.Y. 2024-2025',
-                program: 'Computer Engineering'
-            }
-        ],
+        schoolYears: [],
+        rooms: [],
+        buildings: [],
+        programs: {},
+        loads: [],
         noClassDays: {}
     }
 };
@@ -746,8 +559,12 @@ function renderProgramResources() {
                     const semContainer = document.createElement('div'); semContainer.className = 'pl-2 space-y-1.5';
                     semContainer.innerHTML = `<div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mt-1">${semKey}</div>`;
                     program.subjects[yearKey][semKey].forEach(sub => {
-                        const subRow = document.createElement('div'); subRow.className = 'rounded-2xl bg-slate-50 p-3 flex items-center justify-between text-xs hover:bg-slate-100 transition-all';
-                        subRow.innerHTML = `<span class="font-medium text-gray-800">${sub.name}</span>`;
+                        const hours = typeof getSubjectHourParts === 'function' ? getSubjectHourParts(sub) : { lec: Number(sub.units) || 0, lab: 0, units: Number(sub.units) || 0 };
+                        const isBridging = Boolean(sub.is_bridging) || (typeof getSubjectBridgingStatus === 'function' && getSubjectBridgingStatus(State.activeProgram, sub.name));
+                        const bridgingBadge = isBridging ? '<span class="bg-orange-100 text-orange-800 border border-orange-300 text-[10px] px-1.5 py-0.5 rounded mr-2 uppercase font-black tracking-wider">BRIDGING</span>' : '';
+                        const subRow = document.createElement('div');
+                        subRow.className = `rounded-2xl ${isBridging ? 'bg-orange-50 border border-orange-200' : 'bg-slate-50'} p-3 flex items-center justify-between text-xs hover:bg-slate-100 transition-all cursor-pointer`;
+                        subRow.innerHTML = `<span class="font-medium text-gray-800">${bridgingBadge}${escapeHtml(sub.name)} <span class="text-slate-500 font-medium">(Lec ${hours.lec} + Lab ${hours.lab} = ${hours.units}u)</span></span>`;
                         semContainer.appendChild(subRow);
                     });
                     yearSection.appendChild(semContainer);
@@ -1610,16 +1427,17 @@ function saveFacultyProfileUpdate() {
     displaySelectedFacultyProfile();
 }
 
-function saveNewFacultyProfile() {
+async function saveNewFacultyProfile() {
     const name = document.getElementById('new-faculty-name')?.value.trim();
     if (!name) {
         showBanner('Please enter the faculty name.', 'error');
         return;
     }
+
     const program = document.getElementById('new-faculty-program')?.value || State.activeProgram;
     const classification = document.getElementById('new-faculty-classification')?.value || 'Regular';
     const classificationRank = document.getElementById('new-faculty-rank')?.value || '';
-    
+
     const id = `prof-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}-${Date.now()}`;
     const facultyObject = {
         id, name,
@@ -1654,27 +1472,36 @@ function saveNewFacultyProfile() {
         natureOfAppointment: document.getElementById('new-faculty-nature')?.value || '',
         remarks: document.getElementById('new-faculty-remarks')?.value || ''
     };
-    
-    facultyRegistry.push(facultyObject);
-    if (!State.db.programs[program]) {
-        State.db.programs[program] = { profs: [], sections: [], subjects: {} };
-    }
-    if (!State.db.programs[program].profs.includes(name)) {
-        State.db.programs[program].profs.push(name);
-    }
-    persistState();
-    populateFacultyDropdowns();
-    populateFacultyProfileDropdown();
-    renderProgramResources();
-    renderDashboard();
-    document.getElementById('new-faculty-form')?.reset();
-    showBanner(`Faculty profile for ${name} has been added successfully.`, 'success');
-    
+
     try {
+        await fetch('/api/faculty', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(facultyObject)
+        });
+
+        facultyRegistry.push(facultyObject);
+        if (!State.db.programs[program]) {
+            State.db.programs[program] = { profs: [], sections: [], subjects: {} };
+        }
+        if (!State.db.programs[program].profs.includes(name)) {
+            State.db.programs[program].profs.push(name);
+        }
+        persistState();
+        populateFacultyDropdowns();
+        populateFacultyProfileDropdown();
+        renderProgramResources();
+        renderDashboard();
+        document.getElementById('new-faculty-form')?.reset();
+        showBanner(`Faculty profile for ${name} has been added successfully.`, 'success');
+
         if (window.location.pathname.endsWith('add-faculty-profile.html') || window.location.href.includes('add-faculty-profile.html')) {
             window.location.href = `program-resources.html?new=${encodeURIComponent(name)}`;
         }
-    } catch (e) {}
+    } catch (error) {
+        console.error('Failed to save faculty profile:', error);
+        showBanner('The faculty could not be saved. Please try again.', 'error');
+    }
 }
 
 function updateClassificationRankSelect() {
@@ -1879,9 +1706,12 @@ function renderProgramResources() {
                     semContainer.className = 'pl-2 space-y-1.5';
                     semContainer.innerHTML = `<div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mt-1">${semKey}</div>`;
                     program.subjects[yearKey][semKey].forEach(sub => {
+                        const hours = typeof getSubjectHourParts === 'function' ? getSubjectHourParts(sub) : { lec: Number(sub.units) || 0, lab: 0, units: Number(sub.units) || 0 };
+                        const isBridging = Boolean(sub.is_bridging) || (typeof getSubjectBridgingStatus === 'function' && getSubjectBridgingStatus(State.activeProgram, sub.name));
+                        const bridgingBadge = isBridging ? '<span class="bg-orange-100 text-orange-800 border border-orange-300 text-[10px] px-1.5 py-0.5 rounded mr-2 uppercase font-black tracking-wider">BRIDGING</span>' : '';
                         const subRow = document.createElement('div');
-                        subRow.className = 'rounded-2xl bg-slate-50 p-3 flex items-center justify-between text-xs hover:bg-slate-100 transition-all';
-                        subRow.innerHTML = `<span class="font-medium text-gray-800">${sub.name}</span>`;
+                        subRow.className = `rounded-2xl ${isBridging ? 'bg-orange-50 border border-orange-200' : 'bg-slate-50'} p-3 flex items-center justify-between text-xs hover:bg-slate-100 transition-all cursor-pointer`;
+                        subRow.innerHTML = `<span class="font-medium text-gray-800">${bridgingBadge}${escapeHtml(sub.name)} <span class="text-slate-500 font-medium">(Lec ${hours.lec} + Lab ${hours.lab} = ${hours.units}u)</span></span>`;
                         semContainer.appendChild(subRow);
                     });
                     yearSection.appendChild(semContainer);
@@ -2220,12 +2050,32 @@ function renderRoomSchedulePreview() {
             if (skipCell[day][start]) return;
             const entry = scheduleMap[day][start];
             if (entry) {
-                const palette = getProgramPalette(entry.load.program);
-                const cellClasses = palette ? `${palette.row} text-slate-900` : 'bg-amber-100 text-slate-900';
-                html += `<td rowspan="${entry.span}" class="border p-2 align-top ${cellClasses} font-medium">
-                    <div class="font-bold text-[11px]">${entry.load.sub}</div>
-                    <div class="text-[10px] text-slate-700">${entry.load.prof}</div>
-                    <div class="text-[9px] text-slate-500">${entry.load.sec} · ${entry.load.building}</div>
+                const load = entry.load;
+                const isBridging = typeof getSubjectBridgingStatus === 'function' ? getSubjectBridgingStatus(load.program || State.activeProgram, load.sub) : false;
+                const bridgingBadge = isBridging 
+                    ? '<span class="inline-block bg-orange-100 text-orange-800 border border-orange-300 px-1 py-0.5 rounded text-[8px] font-black uppercase tracking-wider mr-1">BRIDGING</span>' 
+                    : '';
+                const typeBadge = isBridging
+                    ? '<span class="inline-block bg-orange-100 text-orange-800 border border-orange-300 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider">BRIDGING</span>'
+                    : '<span class="inline-block bg-slate-100 text-slate-600 border border-slate-200 px-1.5 py-0.5 rounded text-[8px] font-semibold uppercase tracking-wider">Regular</span>';
+                const cleanSub = String(load.sub || '').replace(/^\[\s*BRIDGING\s*\]\s*/i, '');
+                const compHours = Number(load.units) || 0;
+                const compType = load.component_type || 'Lec';
+                const bldgRoom = typeof formatBuildingRoom === 'function' ? formatBuildingRoom(load) : `${load.building || ''} - ${load.room || ''}`;
+                const loadType = load.loadType || 'Regular Load';
+
+                const palette = getProgramPalette(load.program);
+                const cellBg = isBridging ? 'bg-orange-50/70 text-slate-900 border-orange-300' : (palette ? `${palette.row} text-slate-900 border-amber-300` : 'bg-amber-100 text-slate-900 border-amber-300');
+
+                html += `<td rowspan="${entry.span}" class="border-2 p-2 align-top ${cellBg} rounded-sm text-left font-medium">
+                    <div class="font-black text-[11px] leading-tight mb-0.5 text-slate-900">${bridgingBadge}${escapeHtml(cleanSub)}</div>
+                    <div class="text-[10px] font-semibold text-slate-800 leading-tight">${escapeHtml(load.prof || 'TBA')}</div>
+                    <div class="my-0.5">${typeBadge}</div>
+                    <div class="text-[9px] font-semibold text-slate-700 leading-tight">${escapeHtml(loadType)}</div>
+                    <div class="text-[9px] text-slate-600 leading-tight">${escapeHtml(load.sec || '')}</div>
+                    <div class="text-[9px] text-slate-600 leading-tight"><span class="font-bold text-slate-800">${compHours} hours</span> - <span class="rounded bg-white/80 border border-slate-200 px-1 font-semibold text-[8px] text-slate-700">${escapeHtml(compType)}</span></div>
+                    <div class="text-[9px] text-slate-600 font-medium leading-tight">${escapeHtml(bldgRoom)}</div>
+                    <div class="text-[9px] font-bold text-slate-700 leading-tight mt-1">${escapeHtml(load.time || '')}</div>
                 </td>`;
             } else {
                 html += `<td class="border bg-white"></td>`;
@@ -2294,12 +2144,35 @@ function renderFacultyCalendar() {
             if (skipCell[day][start]) return;
             const entry = scheduleMap[day][start];
             if (entry) {
-                const palette = getProgramPalette(entry.load.program);
-                const cellClasses = palette ? `${palette.row} text-slate-900` : 'bg-slate-100 text-slate-900';
-                html += `<td rowspan="${entry.span}" class="border p-2 align-top ${cellClasses}">
-                    <div class="font-bold text-[11px]">${entry.load.sub}</div>
-                    <div class="text-[10px] text-slate-700">${entry.load.sec}</div>
-                    <div class="text-[9px] text-slate-500">${entry.load.room}</div>
+                const load = entry.load;
+                const isBridging = typeof getSubjectBridgingStatus === 'function' ? getSubjectBridgingStatus(load.program || programName, load.sub) : false;
+                const bridgingBadge = isBridging 
+                    ? '<span class="inline-block bg-orange-100 text-orange-800 border border-orange-300 px-1 py-0.5 rounded text-[8px] font-black uppercase tracking-wider mr-1">BRIDGING</span>' 
+                    : '';
+                const cleanSub = String(load.sub || '').replace(/^\[\s*BRIDGING\s*\]\s*/i, '');
+                const compHours = Number(load.units) || 0;
+                const compType = load.component_type || 'Lec';
+                const bldgRoom = typeof formatBuildingRoom === 'function' ? formatBuildingRoom(load) : `${load.building || ''} - ${load.room || ''}`;
+                const loadType = load.loadType || 'Regular Load';
+
+                let cellClasses = 'bg-slate-50 text-slate-800 border-slate-200';
+                if (isBridging) {
+                    cellClasses = 'bg-orange-50 text-orange-950 border-orange-200';
+                } else if (load.loadType === 'Regular Load') {
+                    cellClasses = 'bg-emerald-50 text-emerald-800 border-emerald-200';
+                } else if (load.loadType === 'Part-Time Load' || load.loadType === 'Part-time Load') {
+                    cellClasses = 'bg-sky-50 text-sky-800 border-sky-200';
+                } else if (load.loadType === 'Temporary Substitute Load' || load.loadType === 'Temporary Substitute') {
+                    cellClasses = 'bg-amber-50 text-amber-800 border-amber-200';
+                }
+
+                html += `<td rowspan="${entry.span}" class="border p-2 align-top ${cellClasses} text-left">
+                    <div class="font-black text-[11px] leading-tight mb-0.5 text-slate-900">${bridgingBadge}${escapeHtml(cleanSub)}</div>
+                    <div class="text-[9px] font-semibold text-slate-700 leading-tight">${escapeHtml(loadType)}</div>
+                    <div class="text-[9px] text-slate-600 leading-tight">${escapeHtml(load.sec || '')}</div>
+                    <div class="text-[9px] text-slate-600 leading-tight"><span class="font-bold text-slate-800">${compHours} hours</span> - <span class="rounded bg-white/80 border border-slate-200 px-1 font-semibold text-[8px] text-slate-700">${escapeHtml(compType)}</span></div>
+                    <div class="text-[9px] text-slate-600 font-medium leading-tight">${escapeHtml(bldgRoom)}</div>
+                    <div class="text-[9px] font-bold text-slate-700 leading-tight mt-1">${escapeHtml(load.time || '')}</div>
                 </td>`;
             } else {
                 html += `<td class="border bg-white"></td>`;
@@ -2429,10 +2302,31 @@ function renderTimetable() {
             if (skipCell[day][start]) return;
             const entry = scheduleMap[day][start];
             if (entry) {
-                html += `<td rowspan="${entry.span}" class="border p-2 align-top bg-blue-50 text-slate-900 font-medium">
-                    <div class="font-bold">${entry.load.sub}</div>
-                    <div class="text-[10px] text-slate-700">${entry.load.prof}</div>
-                    <div class="text-[9px] text-slate-500">${entry.load.room}</div>
+                const load = entry.load;
+                const isBridging = typeof getSubjectBridgingStatus === 'function' ? getSubjectBridgingStatus(load.program || State.activeProgram, load.sub) : false;
+                const bridgingBadge = isBridging 
+                    ? '<span class="inline-block bg-orange-100 text-orange-800 border border-orange-300 px-1 py-0.5 rounded text-[8px] font-black uppercase tracking-wider mr-1">BRIDGING</span>' 
+                    : '';
+                const typeBadge = isBridging
+                    ? '<span class="inline-block bg-orange-100 text-orange-800 border border-orange-300 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider">BRIDGING</span>'
+                    : '<span class="inline-block bg-slate-100 text-slate-600 border border-slate-200 px-1.5 py-0.5 rounded text-[8px] font-semibold uppercase tracking-wider">Regular</span>';
+                const cleanSub = String(load.sub || '').replace(/^\[\s*BRIDGING\s*\]\s*/i, '');
+                const compHours = Number(load.units) || 0;
+                const compType = load.component_type || 'Lec';
+                const bldgRoom = typeof formatBuildingRoom === 'function' ? formatBuildingRoom(load) : `${load.building || ''} - ${load.room || ''}`;
+                const loadType = load.loadType || 'Regular Load';
+
+                const cellBg = isBridging ? 'bg-orange-50 text-slate-900 border-orange-200' : 'bg-blue-50 text-slate-900 border-blue-200';
+
+                html += `<td rowspan="${entry.span}" class="border p-2 align-top ${cellBg} font-medium text-left">
+                    <div class="font-black text-[11px] leading-tight mb-0.5 text-slate-900">${bridgingBadge}${escapeHtml(cleanSub)}</div>
+                    <div class="text-[10px] font-semibold text-slate-800 leading-tight">${escapeHtml(load.prof || 'TBA')}</div>
+                    <div class="my-0.5">${typeBadge}</div>
+                    <div class="text-[9px] font-semibold text-slate-700 leading-tight">${escapeHtml(loadType)}</div>
+                    <div class="text-[9px] text-slate-600 leading-tight">${escapeHtml(load.sec || '')}</div>
+                    <div class="text-[9px] text-slate-600 leading-tight"><span class="font-bold text-slate-800">${compHours} hours</span> - <span class="rounded bg-white/80 border border-slate-200 px-1 font-semibold text-[8px] text-slate-700">${escapeHtml(compType)}</span></div>
+                    <div class="text-[9px] text-slate-600 font-medium leading-tight">${escapeHtml(bldgRoom)}</div>
+                    <div class="text-[9px] font-bold text-slate-700 leading-tight mt-1">${escapeHtml(load.time || '')}</div>
                 </td>`;
             } else {
                 html += `<td class="border bg-white"></td>`;
@@ -2569,24 +2463,35 @@ function normalizeTimeString(time) {
 }
 
 function formatScheduleCell(load, type) {
+    const isBridging = typeof getSubjectBridgingStatus === 'function'
+        ? getSubjectBridgingStatus(load.program || State.activeProgram, load.sub)
+        : false;
+    const cleanSub = String(load.sub || '').replace(/^\[\s*BRIDGING\s*\]\s*/i, '');
+    const subjectTitle = isBridging ? `[BRIDGING] ${cleanSub}` : cleanSub;
+    const compHours = Number(load.units) || 0;
+    const compType = load.component_type || 'Lec';
+    const hoursText = `${compHours} hours - ${compType}`;
+    const bldgRoom = typeof formatBuildingRoom === 'function' ? formatBuildingRoom(load) : `${load.building || ''} - ${load.room || ''}`;
+    const loadType = load.loadType || 'Regular Load';
+
     const lines = [];
-    if (load.sub) lines.push(load.sub);
     if (type === 'faculty') {
-        if (load.sec) lines.push(load.sec);
-        if (load.room) lines.push(load.room);
-        if (load.program) lines.push(load.program);
-    } else if (type === 'room') {
-        if (load.sec) lines.push(load.sec);
-        if (load.prof) lines.push(load.prof);
-        if (load.program) lines.push(load.program);
-    } else if (type === 'section') {
-        if (load.prof) lines.push(load.prof);
-        if (load.room) lines.push(load.room);
-        if (load.program) lines.push(load.program);
+        lines.push(subjectTitle);
+        lines.push(`Load Type: ${loadType}`);
+        lines.push(`Section: ${load.sec || 'N/A'}`);
+        lines.push(`Hours: ${hoursText}`);
+        lines.push(bldgRoom);
+        lines.push(`Time: ${load.time || 'N/A'}`);
     } else {
-        if (load.prof) lines.push(load.prof);
+        lines.push(subjectTitle);
+        lines.push(`Professor: ${load.prof || 'TBA'}`);
+        lines.push(`Type: ${isBridging ? 'Bridging' : 'Regular'}`);
+        lines.push(`Load Type: ${loadType}`);
+        lines.push(`Section: ${load.sec || 'N/A'}`);
+        lines.push(`Hours: ${hoursText}`);
+        lines.push(bldgRoom);
+        lines.push(`Time: ${load.time || 'N/A'}`);
     }
-    if (load.loadType) lines.push(load.loadType);
     return lines.filter(Boolean).join('\n');
 }
 
@@ -2651,29 +2556,63 @@ function buildScheduleGrid(title, subtitle, loads, type) {
 }
 
 function exportFacultyWorkloadReport() {
-    const filename = `Faculty_Workload_Report_${State.activeProgram.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}`;
-    const headers = ['Faculty Name', 'Classification', 'Title/Rank', 'Subject Code', 'Section', 'Load Type', 'Units', 'Room', 'Day', 'Time', 'Program'];
-    
-    const data = State.db.loads.map(load => {
-        const faculty = facultyRegistry.find(f => f.name === load.prof);
-        const rankLabel = faculty && faculty.classificationRank ? getClassificationRankLabel(faculty.classification, faculty.classificationRank) : 'N/A';
-        return [
-            load.prof,
-            faculty ? faculty.classification : 'N/A',
-            faculty ? faculty.baseDesignation : 'N/A',
-            load.sub,
-            load.sec,
-            load.loadType,
-            load.units,
-            load.room,
-            load.day,
-            load.time,
-            load.program
-        ];
-    });
-    
-    downloadExcel(filename, data, headers);
-    showBanner(`Workload report exported successfully!`, 'success');
+    const buildWorkbook = () => {
+        const filename = `Faculty_Workload_Report_${String(State.activeProgram || 'All_Programs').replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}`;
+        const workbook = XLSX.utils.book_new();
+        const context = getExportContext();
+        const allLoads = Array.isArray(State.db.loads) ? State.db.loads : [];
+
+        if (allLoads.length === 0) {
+            const emptyRows = [
+                ['Academic Year', context.schoolYear],
+                ['Term', context.semesterLabel],
+                [],
+                ['Status', 'No workload data available for this current selection.']
+            ];
+            const worksheet = XLSX.utils.aoa_to_sheet(emptyRows);
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'No_Data');
+            XLSX.writeFile(workbook, `${filename}.xlsx`);
+            showBanner('Workload report exported successfully with no data rows.', 'success');
+            return;
+        }
+
+        const groupedLoads = {};
+
+        allLoads.forEach(load => {
+            const facultyName = load.prof || 'Unknown Faculty';
+            if (!groupedLoads[facultyName]) groupedLoads[facultyName] = [];
+            groupedLoads[facultyName].push(load);
+        });
+
+        Object.entries(groupedLoads)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .forEach(([facultyName, loads]) => {
+                const title = `PROF. (${facultyName.toUpperCase()}) SCHEDULE`;
+                const subtitle = `${context.semesterLabel.toUpperCase()} AY A.Y. ${context.schoolYear}`;
+                const { rows, merges, cols } = buildScheduleGrid(title, subtitle, loads, 'faculty');
+
+                const safeSheetName = String(facultyName || 'Faculty').replace(/[\\/*?:\[\]]/g, ' ').replace(/\s+/g, ' ').trim();
+                const finalSheetName = safeSheetName.slice(0, 31) || 'Faculty';
+                const worksheet = XLSX.utils.aoa_to_sheet(rows);
+                worksheet['!merges'] = merges;
+                worksheet['!cols'] = cols;
+                XLSX.utils.book_append_sheet(workbook, worksheet, finalSheetName);
+            });
+
+        XLSX.writeFile(workbook, `${filename}.xlsx`);
+        showBanner(`Workload report exported successfully!`, 'success');
+    };
+
+    if (typeof XLSX === 'undefined') {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+        script.onload = buildWorkbook;
+        script.onerror = () => showBanner('Workbook library failed to load. Please try again.', 'error');
+        document.head.appendChild(script);
+        return;
+    }
+
+    buildWorkbook();
 }
 
 function exportFacultyRoster() {

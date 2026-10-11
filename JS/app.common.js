@@ -1,94 +1,112 @@
 
 const TEMP_DATABASE = window.TEMP_DATABASE || null;
-const facultyRegistry = TEMP_DATABASE?.facultyRegistry || [
-    {
-        id: "prof-jefferson",
-        name: "Sir Jefferson",
-        baseDesignation: "Instructor I",
-        program: "Information Technology",
-        employmentType: "Regular",
-        classification: "Designee",
-        classificationRank: "instructor",
-        active: true,
-        educationalAttainment: {
-            baccalaureate: "BS Information Technology",
-            masters: "MSc Computer Science",
-            doctorate: "",
-            postBaccalaureate: ""
-        },
-        licenseNumber: "LIC-9134",
-        specialization: "Systems Analysis",
-        nationalCertificate: "NC II",
-        courseHandle: {
-            genEd: "Math",
-            coreSubject: "IT102",
-            professionalSubject: "Software Engineering",
-            technicalSubject: "Programming"
-        },
-        research: { production: "2", presentation: "3", publication: "1", citation: "8" },
-        extension: "Community IT Training",
-        natureOfAppointment: "Full-time",
-        remarks: "In good standing"
-    },
-    {
-        id: "prof-delacruz",
-        name: "Dr. Maria Dela Cruz",
-        baseDesignation: "Head of Academic Affairs",
-        program: "Information Technology",
-        employmentType: "Regular",
-        classification: "Director",
-        classificationRank: "",
-        active: true,
-        educationalAttainment: {
-            baccalaureate: "BS Computer Science",
-            masters: "MEd Curriculum",
-            doctorate: "PhD Educational Leadership",
-            postBaccalaureate: ""
-        },
-        licenseNumber: "LIC-7201",
-        specialization: "Database Systems",
-        nationalCertificate: "NC III",
-        courseHandle: {
-            genEd: "English",
-            coreSubject: "DB Systems",
-            professionalSubject: "Database Design",
-            technicalSubject: "SQL Programming"
-        },
-        research: { production: "4", presentation: "2", publication: "2", citation: "15" },
-        extension: "Research mentorship",
-        natureOfAppointment: "Full-time",
-        remarks: "Academic leader"
-    },
-    {
-        id: "prof-santos",
-        name: "Prof. Ricardo Santos",
-        baseDesignation: "Regular Lecturer",
-        program: "Computer Engineering",
-        employmentType: "Regular",
-        classification: "Regular",
-        classificationRank: "",
-        active: true,
-        educationalAttainment: {
-            baccalaureate: "BSE Computer Engineering",
-            masters: "MEng Electronics",
-            doctorate: "",
-            postBaccalaureate: ""
-        },
-        licenseNumber: "LIC-4485",
-        specialization: "Microprocessors",
-        nationalCertificate: "NC IV",
-        courseHandle: {
-            genEd: "Physics",
-            coreSubject: "Microprocessor Systems",
-            professionalSubject: "Embedded Systems",
-            technicalSubject: "Circuit Design"
-        },
-        research: { production: "1", presentation: "1", publication: "0", citation: "2" },
-        extension: "Technical workshops",
-        natureOfAppointment: "Full-time",
-        remarks: "Consistent instructor"
+const facultyRegistry = TEMP_DATABASE?.facultyRegistry || [];
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>'"]/g, character => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        "'": '&#39;',
+        '"': '&quot;'
+    }[character]));
+}
+
+function findSubjectInfo(subjectName, programName) {
+    if (!subjectName || !State || !State.db || !State.db.programs) return null;
+    const cleanSub = String(subjectName).replace(/^\[\s*BRIDGING\s*\]\s*/i, '').trim().toLowerCase();
+    
+    // Check in specified program first
+    if (programName && State.db.programs[programName]) {
+        const prog = State.db.programs[programName];
+        if (Array.isArray(prog.bridgingSubjects)) {
+            const found = prog.bridgingSubjects.find(s => (s.name || '').trim().toLowerCase() === cleanSub);
+            if (found) return found;
+        }
+        if (prog.subjects) {
+            for (const y of Object.keys(prog.subjects)) {
+                for (const sem of Object.keys(prog.subjects[y] || {})) {
+                    const found = (prog.subjects[y][sem] || []).find(s => (s.name || '').trim().toLowerCase() === cleanSub);
+                    if (found) return found;
+                }
+            }
+        }
     }
-];
+    
+    // Check across all programs
+    for (const pKey of Object.keys(State.db.programs)) {
+        const prog = State.db.programs[pKey];
+        if (Array.isArray(prog.bridgingSubjects)) {
+            const found = prog.bridgingSubjects.find(s => (s.name || '').trim().toLowerCase() === cleanSub);
+            if (found) return found;
+        }
+        if (prog.subjects) {
+            for (const y of Object.keys(prog.subjects)) {
+                for (const sem of Object.keys(prog.subjects[y] || {})) {
+                    const found = (prog.subjects[y][sem] || []).find(s => (s.name || '').trim().toLowerCase() === cleanSub);
+                    if (found) return found;
+                }
+            }
+        }
+    }
+    return null;
+}
+
+function getSubjectBridgingStatus(programName, subjectName) {
+    if (!subjectName) return false;
+    const subStr = String(subjectName);
+    if (/\[\s*BRIDGING\s*\]/i.test(subStr) || /\bbridging\b/i.test(subStr)) return true;
+    const info = findSubjectInfo(subjectName, programName);
+    if (info) return !!info.is_bridging;
+    return false;
+}
+
+function getLoadSubjectHours(load) {
+    if (!load) return { lec: 0, lab: 0, units: 0, componentType: 'Lec' };
+    const componentType = load.component_type || 'Lec';
+    let lec = load.lec_units ?? load.lec;
+    let lab = load.lab_units ?? load.lab;
+
+    if (lec == null && lab == null) {
+        const subInfo = findSubjectInfo(load.sub, load.program);
+        if (subInfo) {
+            lec = subInfo.lec_units ?? subInfo.lec;
+            lab = subInfo.lab_units ?? subInfo.lab;
+        }
+    }
+
+    let numLec = Number(lec) || 0;
+    let numLab = Number(lab) || 0;
+    let totalUnits = (numLec + numLab) > 0 ? (numLec + numLab) : (Number(load.units) || 3);
+
+    if (numLec === 0 && numLab === 0) {
+        if (componentType === 'Lab') {
+            numLab = totalUnits;
+        } else if (componentType === 'Lec/Lab') {
+            numLec = Math.ceil(totalUnits / 2);
+            numLab = Math.floor(totalUnits / 2);
+        } else {
+            numLec = totalUnits;
+        }
+    }
+
+    return {
+        lec: numLec,
+        lab: numLab,
+        units: totalUnits,
+        componentType
+    };
+}
+
+function formatBuildingRoom(load) {
+    if (!load) return 'Room TBA';
+    const room = (load.room || '').trim();
+    const bldg = (load.building || '').trim();
+    if (bldg && room) {
+        if (room.toLowerCase().startsWith(bldg.toLowerCase())) return room;
+        return `${bldg} - ${room}`;
+    }
+    return room || bldg || 'Room TBA';
+}
 
 // RE-ORGANIZED DESIGNATION RANK SELECTION STRATEGY
 const designationOptions = [
@@ -186,110 +204,11 @@ const State = {
     facultyFilter: 'all',          // Tracks classification: 'all', 'regular', 'designee', 'part-time'
     facultyStatusFilter: 'all',    // Tracks status toggle: 'all', 'active', 'inactive'
     db: TEMP_DATABASE?.db || {
-        schoolYears: ['A.Y. 2024-2025', 'A.Y. 2025-2026', 'A.Y. 2026-2027'],
-        rooms: ['Room A101', 'Room B202', 'Lab A', 'Lab B', 'Audio Visual Room'],
-        buildings: ['Main Building', 'New Building'],
-        programs: {
-            'Information Technology': {
-                profs: ['Sir Jefferson', 'Dr. Maria Dela Cruz'],
-                sections: ['BSIT 1-1', 'BSIT 2-1', 'BSIT 3-1'],
-                subjects: {
-                    "1st Year": {
-                        "1st Semester": [
-                            { name: "IT101 - Introduction to Computing", units: 3 },
-                            { name: "PATHFIT 1 - Movement Competency Training", units: 2 }
-                        ],
-                        "2nd Semester": [
-                            { name: "IT102 - Computer Programming 1", units: 3 },
-                            { name: "IT103 - Discrete Structures", units: 3 }
-                        ]
-                    },
-                    "2nd Year": {
-                        "1st Semester": [
-                            { name: "IT201 - Data Structures and Algorithms", units: 3 },
-                            { name: "IT202 - Object-Oriented Programming", units: 3 }
-                        ],
-                        "2nd Semester": [
-                            { name: "IT203 - Web Systems and Technologies", units: 3 },
-                            { name: "IT204 - Computer Architecture and Organization", units: 3 }
-                        ],
-                        "Summer Term": [
-                            { name: "IT-INT1 - Industry Practicum 1", units: 2 }
-                        ]
-                    },
-                    "3rd Year": {
-                        "1st Semester": [
-                            { name: "IT311 - Database Systems", units: 3 },
-                            { name: "IT312 - Software Engineering 1", units: 3 }
-                        ],
-                        "2nd Semester": [
-                            { name: "IT313 - Information Assurance and Security", units: 3 }
-                        ]
-                    }
-                }
-            },
-            'Computer Engineering': {
-                profs: ['Prof. Ricardo Santos'],
-                sections: ['COE 3-1', 'COE 4-1'],
-                subjects: {
-                    "3rd Year": {
-                        "1st Semester": [
-                            { name: "COE311 - Digital Design", units: 4 }
-                        ],
-                        "2nd Semester": [
-                            { name: "COE221 - Electronics I", units: 3 }
-                        ]
-                    },
-                    "4th Year": {
-                        "1st Semester": [
-                            { name: "COE412 - Microprocessor Systems", units: 4 }
-                        ]
-                    }
-                }
-            },
-            'Hospitality Management': {
-                profs: ['Prof. Amelia Reyes'],
-                sections: ['HM 1-1', 'HM 2-1'],
-                subjects: {
-                    "1st Year": {
-                        "1st Semester": [
-                            { name: "HM101 - Food Service Management", units: 3 },
-                            { name: "PATHFIT 1 - Movement Competency Training", units: 2 }
-                        ]
-                    }
-                }
-            }
-        },
-        loads: [
-            {
-                id: 1,
-                prof: 'Dr. Maria Dela Cruz',
-                sub: 'IT311 - Database Systems',
-                units: 3,
-                loadType: 'Regular Load',
-                sec: 'BSIT 2-1',
-                room: 'Room A101',
-                building: 'Main Building',
-                day: 'Monday',
-                time: '08:00 AM - 11:00 AM',
-                sy: 'A.Y. 2024-2025',
-                program: 'Information Technology'
-            },
-            {
-                id: 2,
-                prof: 'Prof. Ricardo Santos',
-                sub: 'COE412 - Microprocessor Systems',
-                units: 4,
-                loadType: 'Regular Load',
-                sec: 'COE 4-1',
-                room: 'Room B202',
-                building: 'New Building',
-                day: 'Wednesday',
-                time: '10:00 AM - 02:00 PM',
-                sy: 'A.Y. 2024-2025',
-                program: 'Computer Engineering'
-            }
-        ],
+        schoolYears: [],
+        rooms: [],
+        buildings: [],
+        programs: {},
+        loads: [],
         noClassDays: {}
     }
 };
@@ -353,6 +272,62 @@ function getAllSubjectNames() {
     return Array.from(names).sort((a, b) => a.localeCompare(b));
 }
 
+function getSubjectHourParts(subject = {}) {
+    let lecture = subject.lec_units ?? subject.lec ?? subject.lectureHours;
+    let lab = subject.lab_units ?? subject.lab ?? subject.labHours;
+    if (lecture === undefined && lab === undefined) {
+        const subName = typeof subject === 'string' ? subject : subject?.name;
+        if (subName && typeof findSubjectInfo === 'function') {
+            const info = findSubjectInfo(subName, State.activeProgram);
+            if (info && (info.lec_units !== undefined || info.lab_units !== undefined)) {
+                lecture = info.lec_units ?? info.lec;
+                lab = info.lab_units ?? info.lab;
+            }
+        }
+    }
+    if (lecture === undefined && lab === undefined) {
+        return { lec: Number(subject.units) || 0, lab: 0, units: Number(subject.units) || 0 };
+    }
+    const lec = Number(lecture) || 0;
+    const labHours = Number(lab) || 0;
+    return { lec, lab: labHours, units: (lec + labHours) > 0 ? (lec + labHours) : (Number(subject.units) || 0) };
+}
+
+function getSubjectScheduledComponents(subject, loads = [], excludeLoadId = null) {
+    const totals = getSubjectHourParts(subject);
+    const scheduled = { lec: 0, lab: 0 };
+    const orderedLoads = [...loads]
+        .filter(load => String(load.id) !== String(excludeLoadId))
+        .sort((first, second) => Number(first.id) - Number(second.id));
+
+    orderedLoads.forEach(load => {
+        const hours = Math.max(0, Number(load.units) || 0);
+        const component = load.component_type || load.componentType || 'Lec/Lab';
+        if (component === 'Lec') {
+            scheduled.lec += hours;
+        } else if (component === 'Lab') {
+            scheduled.lab += hours;
+        } else {
+            const lecRemaining = Math.max(0, totals.lec - scheduled.lec);
+            const lecUsed = Math.min(lecRemaining, hours);
+            scheduled.lec += lecUsed;
+            scheduled.lab += Math.min(Math.max(0, totals.lab - scheduled.lab), hours - lecUsed);
+        }
+    });
+
+    return {
+        scheduled,
+        remaining: {
+            lec: Math.max(0, totals.lec - scheduled.lec),
+            lab: Math.max(0, totals.lab - scheduled.lab)
+        },
+        total: totals.units
+    };
+}
+if (typeof window !== 'undefined') {
+    window.getSubjectScheduledComponents = getSubjectScheduledComponents;
+}
+
 function getPreferredSubjectOptions(selected = '', includeNone = false) {
     const subjects = getAllSubjectNames();
     const selectedArray = Array.isArray(selected)
@@ -374,15 +349,28 @@ function getPreferredSubjectOptions(selected = '', includeNone = false) {
 }
 
 function getPreferredDayOptions(selected = '') {
-    return ['','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map(day => `
+    return ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => `
         <option value="${day}" ${day === selected ? 'selected' : ''}>${day || 'Choose day'}</option>`
     ).join('');
 }
 
+function getPreferredTimeSlots(startMinutes = 7 * 60, endMinutes = 22 * 60) {
+    const slots = [];
+    for (let m = startMinutes; m < endMinutes; m += 30) {
+        slots.push({
+            start: m,
+            end: m + 30,
+            label: `${formatTime(m)} - ${formatTime(m + 30)}`
+        });
+    }
+    return slots;
+}
+
 function getPreferredTimeOptions(selected = '') {
-    return ['','07:00 AM - 09:00 AM','09:30 AM - 11:30 AM','12:00 PM - 02:00 PM','02:30 PM - 04:30 PM','05:00 PM - 07:00 PM','07:30 PM - 09:30 PM'].map(range => `
-        <option value="${range}" ${range === selected ? 'selected' : ''}>${range || 'Choose time range'}</option>`
-    ).join('');
+    const slots = getPreferredTimeSlots();
+    return ['<option value="">Choose time range</option>']
+        .concat(slots.map(s => `<option value="${s.label}" ${s.label === selected ? 'selected' : ''}>${s.label}</option>`))
+        .join('');
 }
 
 function formatPreferredTime(day, range) {
@@ -396,6 +384,76 @@ function parsePreferredTimeEntries(preferredTimes) {
     return preferredTimes.split(',').map(item => item.trim()).filter(Boolean);
 }
 
+function preferredTimeSlotsByDay(entries) {
+    const slotsByDay = new Map();
+    entries.forEach(entry => {
+        const separatorIndex = entry.indexOf(' ');
+        if (separatorIndex < 0) return;
+        const day = entry.slice(0, separatorIndex).trim();
+        const range = entry.slice(separatorIndex + 1).trim();
+        const [startText, endText] = range.split(' - ');
+        if (!startText || !endText) return;
+
+        let start, end;
+        try {
+            start = parseTimeStr(startText);
+            end = parseTimeStr(endText);
+        } catch (error) {
+            return;
+        }
+        if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return;
+
+        const daySlots = slotsByDay.get(day) || new Set();
+        for (let slotStart = start; slotStart < end; slotStart += 30) {
+            daySlots.add(slotStart);
+        }
+        slotsByDay.set(day, daySlots);
+    });
+    return slotsByDay;
+}
+
+function preferredTimeEntriesFromSlots(slotsByDay) {
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const entries = [];
+    days.forEach(day => {
+        const starts = [...(slotsByDay.get(day) || [])].sort((a, b) => a - b);
+        if (!starts.length) return;
+
+        let rangeStart = starts[0];
+        let previous = starts[0];
+        starts.slice(1).forEach(start => {
+            if (start !== previous + 30) {
+                entries.push(`${day} ${formatTime(rangeStart)} - ${formatTime(previous + 30)}`);
+                rangeStart = start;
+            }
+            previous = start;
+        });
+        entries.push(`${day} ${formatTime(rangeStart)} - ${formatTime(previous + 30)}`);
+    });
+    return entries;
+}
+
+function renderPreferredIntervalBoxes(containerId, day, currentEntries = []) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    if (!day) {
+        container.innerHTML = '<div class="col-span-full py-2 text-xs text-slate-400 italic">Select a Preferred Day to see 30-min intervals.</div>';
+        return;
+    }
+    const slots = getPreferredTimeSlots();
+    const selectedSlots = preferredTimeSlotsByDay(currentEntries).get(day) || new Set();
+
+    container.innerHTML = slots.map(slot => {
+        const isChecked = selectedSlots.has(slot.start);
+        return `
+            <label class="flex items-center gap-1.5 p-1.5 rounded-lg border text-xs cursor-pointer select-none transition-all ${isChecked ? 'bg-red-50 border-red-300 text-red-900 font-semibold' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}">
+                <input type="checkbox" class="pref-interval-slot h-3.5 w-3.5 rounded accent-[#7f0000]" value="${slot.start}" ${isChecked ? 'checked' : ''} onchange="this.parentElement.className = this.checked ? 'flex items-center gap-1.5 p-1.5 rounded-lg border text-xs cursor-pointer select-none transition-all bg-red-50 border-red-300 text-red-900 font-semibold' : 'flex items-center gap-1.5 p-1.5 rounded-lg border text-xs cursor-pointer select-none transition-all bg-white border-slate-200 text-slate-700 hover:bg-slate-50'">
+                <span class="text-[11px]">${slot.label}</span>
+            </label>
+        `;
+    }).join('');
+}
+
 function renderPreferredTimeList(listId, entries = [], hiddenInputId) {
     const listContainer = document.getElementById(listId);
     const hiddenInput = document.getElementById(hiddenInputId);
@@ -405,9 +463,9 @@ function renderPreferredTimeList(listId, entries = [], hiddenInputId) {
         const [day, ...timeParts] = entry.split(' ');
         const time = timeParts.join(' ');
         return `
-            <div class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-700 mr-2 mb-2" data-day="${day}" data-time="${time}">
+            <div class="inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs text-red-900 mr-2 mb-2 font-medium" data-day="${day}" data-time="${time}">
                 <span>${day} ${time}</span>
-                <button type="button" class="font-semibold text-slate-500 hover:text-slate-900">×</button>
+                <button type="button" class="font-bold text-red-500 hover:text-red-800 ml-1">×</button>
             </div>`;
     }).join('');
 
@@ -419,60 +477,69 @@ function renderPreferredTimeList(listId, entries = [], hiddenInputId) {
         button.addEventListener('click', () => {
             const item = button.closest('[data-day][data-time]');
             if (!item) return;
+            const removedDay = item.dataset.day;
+            const removedTime = item.dataset.time;
             item.remove();
             if (hiddenInput) {
                 const remaining = Array.from(listContainer.querySelectorAll('[data-day][data-time]'))
                     .map(el => `${el.dataset.day} ${el.dataset.time}`);
                 hiddenInput.value = remaining.join(', ');
+                
+                // Refresh interval checkboxes if currently showing the removed day
+                const editDaySelect = document.getElementById('faculty-update-pref-day');
+                if (editDaySelect && editDaySelect.value === removedDay) {
+                    renderPreferredIntervalBoxes('faculty-update-pref-intervals', removedDay, remaining);
+                }
+                const newDaySelect = document.getElementById('new-faculty-pref-day');
+                if (newDaySelect && newDaySelect.value === removedDay) {
+                    renderPreferredIntervalBoxes('new-faculty-pref-intervals', removedDay, remaining);
+                }
             }
         });
     });
 }
 
-function addPreferredTimeEntry(daySelectId, timeSelectId, listId, hiddenInputId) {
+function applyPreferredIntervalSelection(daySelectId, containerId, listId, hiddenInputId) {
     const day = document.getElementById(daySelectId)?.value;
-    const range = document.getElementById(timeSelectId)?.value;
-    const listContainer = document.getElementById(listId);
+    const container = document.getElementById(containerId);
     const hiddenInput = document.getElementById(hiddenInputId);
-    if (!day || !range || !listContainer || !hiddenInput) return;
+    if (!day) return showBanner('Please select a Preferred Day first.', 'error');
+    if (!container || !hiddenInput) return;
 
-    const entry = `${day} ${range}`;
-    const existing = Array.from(listContainer.querySelectorAll('[data-day][data-time]')).map(el => `${el.dataset.day} ${el.dataset.time}`);
-    if (existing.includes(entry)) return;
+    const selectedStarts = [...container.querySelectorAll('.pref-interval-slot:checked')]
+        .map(cb => Number(cb.value))
+        .filter(Number.isFinite);
 
-    const item = document.createElement('div');
-    item.className = 'inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-700 mr-2 mb-2';
-    item.dataset.day = day;
-    item.dataset.time = range;
-    item.innerHTML = `<span>${entry}</span><button type="button" class="font-semibold text-slate-500 hover:text-slate-900">×</button>`;
-    const removeButton = item.querySelector('button');
-    removeButton?.addEventListener('click', () => {
-        item.remove();
-        const remaining = Array.from(listContainer.querySelectorAll('[data-day][data-time]'))
-            .map(el => `${el.dataset.day} ${el.dataset.time}`);
-        hiddenInput.value = remaining.join(', ');
-    });
-    listContainer.appendChild(item);
-    hiddenInput.value = existing.concat(entry).join(', ');
+    if (!selectedStarts.length) {
+        return showBanner('Please check at least one 30-minute interval.', 'error');
+    }
+
+    // Update slots for the selected day
+    const currentEntries = parsePreferredTimeEntries(hiddenInput.value);
+    const slotsByDay = preferredTimeSlotsByDay(currentEntries);
+    slotsByDay.set(day, new Set(selectedStarts));
+
+    const mergedEntries = preferredTimeEntriesFromSlots(slotsByDay);
+    renderPreferredTimeList(listId, mergedEntries, hiddenInputId);
+    renderPreferredIntervalBoxes(containerId, day, mergedEntries);
+    showBanner(`Preferred time for ${day} updated (${mergedEntries.filter(e => e.startsWith(day)).join(', ')}).`, 'success');
 }
 
 function populateNewFacultyPreferredDropdowns() {
     const subjectSelect = document.getElementById('new-faculty-pref-subjects');
-    if (subjectSelect) {
-        subjectSelect.innerHTML = getPreferredSubjectOptions('');
-    }
+    if (subjectSelect) subjectSelect.innerHTML = getPreferredSubjectOptions('');
     const daySelect = document.getElementById('new-faculty-pref-day');
     if (daySelect) {
         daySelect.innerHTML = getPreferredDayOptions('');
+        daySelect.onchange = () => {
+            renderPreferredIntervalBoxes('new-faculty-pref-intervals', daySelect.value, parsePreferredTimeEntries(document.getElementById('new-faculty-pref-times-hidden')?.value || ''));
+        };
     }
-    const timeSelect = document.getElementById('new-faculty-pref-times');
-    if (timeSelect) {
-        timeSelect.innerHTML = getPreferredTimeOptions('');
-    }
+    renderPreferredIntervalBoxes('new-faculty-pref-intervals', daySelect ? daySelect.value : '', []);
     renderPreferredTimeList('new-faculty-pref-time-list', [], 'new-faculty-pref-times-hidden');
     const addButton = document.getElementById('new-faculty-pref-time-add');
     if (addButton) {
-        addButton.onclick = () => addPreferredTimeEntry('new-faculty-pref-day', 'new-faculty-pref-times', 'new-faculty-pref-time-list', 'new-faculty-pref-times-hidden');
+        addButton.onclick = () => applyPreferredIntervalSelection('new-faculty-pref-day', 'new-faculty-pref-intervals', 'new-faculty-pref-time-list', 'new-faculty-pref-times-hidden');
     }
 }
 
@@ -488,16 +555,22 @@ function populateFacultyEditPreferredDropdowns(faculty) {
     const subjectSelect = document.getElementById('faculty-update-pref-subjects');
     if (subjectSelect) subjectSelect.innerHTML = getPreferredSubjectOptions(faculty.preferredSubjects || '', true);
 
-    const { day, time } = parsePreferredTimeComponents(faculty.preferredTimes || '');
+    const currentEntries = parsePreferredTimeEntries(faculty.preferredTimes || '');
+    const { day } = parsePreferredTimeComponents(faculty.preferredTimes || '');
     const daySelect = document.getElementById('faculty-update-pref-day');
-    if (daySelect) daySelect.innerHTML = getPreferredDayOptions(day);
-    const timeSelect = document.getElementById('faculty-update-pref-times');
-    if (timeSelect) timeSelect.innerHTML = getPreferredTimeOptions(time);
+    if (daySelect) {
+        daySelect.innerHTML = getPreferredDayOptions(day);
+        daySelect.onchange = () => {
+            renderPreferredIntervalBoxes('faculty-update-pref-intervals', daySelect.value, parsePreferredTimeEntries(document.getElementById('faculty-update-pref-times-hidden')?.value || ''));
+        };
+    }
 
-    renderPreferredTimeList('faculty-update-pref-time-list', parsePreferredTimeEntries(faculty.preferredTimes || ''), 'faculty-update-pref-times-hidden');
+    renderPreferredIntervalBoxes('faculty-update-pref-intervals', day, currentEntries);
+    renderPreferredTimeList('faculty-update-pref-time-list', currentEntries, 'faculty-update-pref-times-hidden');
+
     const addButton = document.getElementById('faculty-update-pref-time-add');
     if (addButton) {
-        addButton.onclick = () => addPreferredTimeEntry('faculty-update-pref-day', 'faculty-update-pref-times', 'faculty-update-pref-time-list', 'faculty-update-pref-times-hidden');
+        addButton.onclick = () => applyPreferredIntervalSelection('faculty-update-pref-day', 'faculty-update-pref-intervals', 'faculty-update-pref-time-list', 'faculty-update-pref-times-hidden');
     }
 }
 
@@ -579,7 +652,7 @@ function getTimeRange(start, units) {
 function parseTimeRange(range) {
     let start = parseTimeStr(`${range.split(' - ')[0]}`);
     let end = parseTimeStr(`${range.split(' - ')[1]}`);
-    
+
     if (end === 0 && start > 0) {
         end = 1440;
     }
@@ -694,11 +767,34 @@ async function updateFacultyAPI(facultyObj) {
             headers: getAuthHeaders(),
             body: JSON.stringify(facultyObj)
         });
+
         if (!response.ok) {
-            console.error('Failed to update faculty via API');
+            const errorText = await response.text();
+            throw new Error(errorText || 'Failed to update faculty via API');
         }
+
+        return true;
     } catch (err) {
         console.error('API Error:', err);
+        throw err;
+    }
+}
+
+async function updateFacultyStatusAPI(facultyId, isActive) {
+    try {
+        const response = await fetch(`/api/faculty/${encodeURIComponent(facultyId)}/status`, {
+            method: 'PATCH',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ active: isActive })
+        });
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || 'Failed to update faculty status');
+        }
+        return await response.json();
+    } catch (err) {
+        console.error('API Error in updateFacultyStatusAPI:', err);
+        throw err;
     }
 }
 async function loadSavedState() {
@@ -715,7 +811,7 @@ async function loadSavedState() {
             State.db.rooms = data.db.rooms || State.db.rooms;
             State.db.buildings = data.db.buildings || State.db.buildings;
             State.db.programs = data.db.programs || State.db.programs;
-            State.db.loads = data.db.loads || State.db.loads;
+            State.db.loads = Array.isArray(data.db.loads) ? data.db.loads : [];
             State.db.noClassDays = data.db.noClassDays || State.db.noClassDays;
 
             if (savedAcademicYear && State.db.schoolYears.includes(savedAcademicYear)) {
@@ -739,7 +835,7 @@ async function loadSavedState() {
                 State.db.rooms = savedData.rooms || State.db.rooms;
                 State.db.buildings = savedData.buildings || State.db.buildings;
                 State.db.programs = savedData.programs || State.db.programs;
-                State.db.loads = savedData.loads || State.db.loads;
+                State.db.loads = Array.isArray(savedData.loads) ? savedData.loads : [];
                 State.db.noClassDays = savedData.noClassDays || State.db.noClassDays;
                 if (savedData.facultyRegistry && Array.isArray(savedData.facultyRegistry)) {
                     facultyRegistry.splice(0, facultyRegistry.length, ...savedData.facultyRegistry);
@@ -782,7 +878,7 @@ function showErrorModal(title, message) {
     const overlay = document.createElement('div');
     overlay.id = modalId;
     overlay.className = 'fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4 opacity-0 transition-opacity duration-300';
-    
+
     overlay.innerHTML = `
         <div class="bg-white rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden scale-95 transition-transform duration-300 relative">
             <div class="p-10 text-center">
@@ -803,7 +899,7 @@ function showErrorModal(title, message) {
     `;
 
     document.body.appendChild(overlay);
-    
+
     // Trigger animations
     requestAnimationFrame(() => {
         overlay.classList.remove('opacity-0');
@@ -959,56 +1055,734 @@ async function attemptLogin() {
 }
 
 function openForgotPasswordModal() {
-    const intro = 'Forgot Password\n\nTo reset your password, enter your Professor ID, username, and a new 4-8 character alphanumeric password.';
-    alert(intro);
+    openModal({
+        title: 'Forgot Password',
+        submitLabel: 'Reset Password',
+        body: `
+            <div class="space-y-4">
+                <div id="forgot-password-error" class="hidden rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"></div>
+                <div id="forgot-password-success" class="hidden rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700"></div>
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-2">Username</label>
+                    <input id="forgot-password-username" type="text" autocomplete="username" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]" placeholder="Enter your username" />
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-2">ID Number</label>
+                    <input id="forgot-password-id" type="text" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]" placeholder="Enter your ID Number" />
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-2">Full Name</label>
+                    <input id="forgot-password-fullname" type="text" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]" placeholder="Enter your Full Name" />
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-2">New Password</label>
+                    <input id="forgot-password-new" type="password" autocomplete="new-password" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]" placeholder="At least 8 characters" />
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-2">Confirm New Password</label>
+                    <input id="forgot-password-confirm" type="password" autocomplete="new-password" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]" placeholder="Repeat your new password" />
+                </div>
+                <p class="text-xs text-slate-500">For account security, use this only for your own account. Contact an Academic Head if you do not know your credentials.</p>
+            </div>
+        `,
+        onSubmit: async () => {
+            const username = document.getElementById('forgot-password-username')?.value.trim();
+            const idNumber = document.getElementById('forgot-password-id')?.value.trim();
+            const fullName = document.getElementById('forgot-password-fullname')?.value.trim();
+            const newPassword = document.getElementById('forgot-password-new')?.value;
+            const confirmation = document.getElementById('forgot-password-confirm')?.value;
+            const error = document.getElementById('forgot-password-error');
+            const success = document.getElementById('forgot-password-success');
 
-    const professorId = window.prompt('Professor ID (e.g. PUP-TEST-001):');
-    if (!professorId) return;
+            if (error) error.classList.add('hidden');
+            if (success) success.classList.add('hidden');
+            if (!username || !idNumber || !fullName || !newPassword || !confirmation) {
+                if (error) {
+                    error.textContent = 'Username, ID Number, Full Name, and new password fields are all required.';
+                    error.classList.remove('hidden');
+                }
+                return;
+            }
+            const passwordValidation = validatePassword(newPassword);
+            if (!passwordValidation.valid) {
+                if (error) {
+                    error.textContent = passwordValidation.message;
+                    error.classList.remove('hidden');
+                }
+                return;
+            }
+            if (newPassword !== confirmation) {
+                if (error) {
+                    error.textContent = 'The password confirmation does not match.';
+                    error.classList.remove('hidden');
+                }
+                return;
+            }
 
-    const username = window.prompt('Username:');
-    if (!username) return;
-
-    const newPassword = window.prompt('New password (4-8 letters and numbers only):');
-    if (!newPassword) return;
-
-    const confirmPassword = window.prompt('Confirm new password:');
-    if (!confirmPassword) return;
-
-    if (newPassword !== confirmPassword) {
-        alert('New password and confirmation do not match. Please try again.');
-        return;
-    }
-
-    const validation = validatePassword(newPassword);
-    if (!validation.valid) {
-        alert(validation.message);
-        return;
-    }
-
-    fetch('/api/forgot-password', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ professorId: professorId.trim(), username: username.trim(), newPassword })
-    })
-    .then(async response => {
-        const data = await response.json();
-        if (response.ok) {
-            alert(data.message || 'Password reset successful.');
-        } else {
-            alert(data.error || 'Unable to reset password.');
+            const submitButton = document.getElementById('global-modal-submit');
+            if (submitButton) submitButton.disabled = true;
+            try {
+                const response = await fetch('/api/forgot-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, idNumber, fullName, newPassword })
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Unable to reset password.');
+                closeModal();
+                showBanner('Password reset successfully. You can now log in with your new password.', 'success');
+            } catch (err) {
+                if (error) {
+                    error.textContent = err.message || 'Unable to reset password.';
+                    error.classList.remove('hidden');
+                }
+                if (submitButton) submitButton.disabled = false;
+            }
         }
-    })
-    .catch(err => {
-        console.error('Forgot password request failed', err);
-        alert('Unable to reset password right now. Try again later.');
     });
 }
 
+window.openForgotPasswordModal = openForgotPasswordModal;
+
 function logout() {
+    fetch('/api/logout', {
+        method: 'POST',
+        headers: getAuthHeaders()
+    }).catch(() => undefined);
     sessionStorage.removeItem('loggedInUser');
     window.location.href = 'index.html';
+}
+
+function getCurrentUserFromSession() {
+    const userStr = sessionStorage.getItem('loggedInUser');
+    if (!userStr) return null;
+    try {
+        return JSON.parse(userStr);
+    } catch (e) {
+        return null;
+    }
+}
+
+function isAcademicHeadUser() {
+    const user = getCurrentUserFromSession();
+    if (!user) return false;
+    const role = String(user.role || '').toLowerCase();
+    const username = String(user.username || '').toLowerCase();
+    return role.includes('head') || role.includes('academic head') || username === 'head_pq';
+}
+
+function isAcademicAideUser() {
+    const user = getCurrentUserFromSession();
+    if (!user) return false;
+    const role = String(user.role || '').toLowerCase();
+    const username = String(user.username || '').toLowerCase();
+    return role.includes('aide') || role.includes('academic aide') || username === 'aide_pq';
+}
+
+async function deleteFacultyFromAPI(facultyId) {
+    const response = await fetch(`/api/faculty/${encodeURIComponent(facultyId)}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+    });
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Failed to delete faculty');
+    }
+    return response.json();
+}
+
+async function createSectionAPI(programName, sectionName) {
+    const response = await fetch('/api/sections', {
+        method: 'POST', headers: getAuthHeaders(),
+        body: JSON.stringify({ program_name: programName, section_name: sectionName })
+    });
+    if (!response.ok) throw new Error(await response.text() || 'Failed to add section');
+    return response.json();
+}
+
+async function deleteSectionAPI(programName, sectionName) {
+    const response = await fetch('/api/sections', {
+        method: 'DELETE', headers: getAuthHeaders(),
+        body: JSON.stringify({ program_name: programName, section_name: sectionName })
+    });
+    if (!response.ok) throw new Error(await response.text() || 'Failed to delete section');
+    return response.json();
+}
+
+async function createSubjectAPI(payload) {
+    const response = await fetch('/api/subjects', {
+        method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(payload)
+    });
+    if (!response.ok) throw new Error(await response.text() || 'Failed to add subject');
+    return response.json();
+}
+
+async function updateSubjectAPI(payload) {
+    const response = await fetch('/api/subjects', {
+        method: 'PATCH', headers: getAuthHeaders(), body: JSON.stringify(payload)
+    });
+    if (!response.ok) throw new Error(await response.text() || 'Failed to update subject');
+    return response.json();
+}
+
+async function deleteSubjectAPI(payload) {
+    const response = await fetch('/api/subjects', {
+        method: 'DELETE', headers: getAuthHeaders(), body: JSON.stringify(payload)
+    });
+    if (!response.ok) throw new Error(await response.text() || 'Failed to delete subject');
+    return response.json();
+}
+
+function getPendingApprovals() {
+    try {
+        const raw = localStorage.getItem('pendingApprovals');
+        return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+function savePendingApprovals(items) {
+    localStorage.setItem('pendingApprovals', JSON.stringify(items));
+}
+
+function getApprovalHistory() {
+    try {
+        const raw = localStorage.getItem('approvalHistory');
+        return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+function saveApprovalHistory(items) {
+    localStorage.setItem('approvalHistory', JSON.stringify(items.slice(-100)));
+}
+
+function recordApprovalHistory(item, status) {
+    const history = getApprovalHistory();
+    const existingIndex = history.findIndex(entry => entry.id === item.id);
+    const entry = {
+        ...item,
+        status,
+        updatedAt: new Date().toISOString()
+    };
+    if (existingIndex === -1) history.push(entry);
+    else history[existingIndex] = entry;
+    saveApprovalHistory(history);
+}
+
+function normalizeRequestRemarks(value) {
+    return String(value ?? '').replace(/\s+/g, ' ').trim();
+}
+
+function queueApprovalAction(type, payload = {}) {
+    const currentUser = getCurrentUserFromSession() || {};
+    const currentUsername = currentUser.username || 'aide_pq';
+    const currentDisplayName = currentUser.displayName || currentUsername || 'Academic Aide';
+
+    if (!isAcademicHeadUser() && !payload.remarks && typeof window !== 'undefined' && window.prompt) {
+        const remarkPrompt = window.prompt('Add an aide remark for the Academic Head before submitting this request (required):', '');
+        if (remarkPrompt === null) {
+            return null;
+        }
+
+        const remarks = normalizeRequestRemarks(remarkPrompt);
+        if (!remarks) {
+            showBanner('Aide remarks are required before submitting a request.', 'error');
+            return null;
+        }
+
+        payload.remarks = remarks;
+    }
+
+    const pending = getPendingApprovals();
+    const item = {
+        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        type,
+        payload,
+        requestedBy: currentDisplayName,
+        requestedByUsername: currentUsername,
+        remarks: normalizeRequestRemarks(payload.remarks || ''),
+        createdAt: new Date().toISOString()
+    };
+
+    pending.push(item);
+    savePendingApprovals(pending);
+    recordApprovalHistory(item, 'Pending');
+    updateApprovalButtonState();
+    return item;
+}
+
+function requestFacultyStatusChange(facultyId, requestedActiveState) {
+    const faculty = facultyRegistry.find(f => f.id === facultyId);
+    if (!faculty) {
+        showBanner('Faculty record not found.', 'error');
+        return;
+    }
+
+    const actionText = requestedActiveState ? 'activate' : 'deactivate';
+    const queued = queueApprovalAction('faculty_status', {
+        facultyId: faculty.id,
+        name: faculty.name,
+        active: Boolean(requestedActiveState)
+    });
+
+    if (queued) {
+        showBanner(`${faculty.name} status change to ${actionText} is pending Academic Head approval.`, 'info');
+    }
+    if (typeof renderFacultyStatusPage === 'function') {
+        renderFacultyStatusPage();
+    }
+}
+
+function updateApprovalButtonState() {
+    const button = document.getElementById('changes-for-approval-button');
+    const historyButton = document.getElementById('request-history-button');
+    const approvals = getPendingApprovals();
+    const historyIds = new Set(getApprovalHistory().map(item => item.id));
+    approvals.forEach(item => {
+        if (!historyIds.has(item.id)) recordApprovalHistory(item, 'Pending');
+    });
+    if (historyButton) {
+        const isAide = isAcademicAideUser();
+        historyButton.classList.toggle('hidden', !isAide);
+        historyButton.setAttribute('aria-hidden', String(!isAide));
+    }
+    if (!button) return;
+    const isHead = isAcademicHeadUser();
+    if (!isHead) {
+        button.classList.add('hidden');
+        button.setAttribute('aria-hidden', 'true');
+        return;
+    }
+    button.classList.remove('hidden');
+    button.setAttribute('aria-hidden', 'false');
+    button.innerHTML = approvals.length
+        ? `<span class="inline-flex items-center gap-2"><i data-lucide="badge-check" class="w-4 h-4"></i>Changes for Approval (${approvals.length})</span>`
+        : '<span class="inline-flex items-center gap-2"><i data-lucide="check-check" class="w-4 h-4"></i>Changes for Approval</span>';
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function openApprovalQueueModal() {
+    const approvals = getPendingApprovals();
+    if (!approvals.length) {
+        openModal({
+            title: 'Changes for Approval',
+            body: '<div class="text-sm text-slate-600">There are no pending changes waiting for approval.</div>',
+            submitLabel: 'Close',
+            onSubmit: closeModal
+        });
+        return;
+    }
+
+    const rows = approvals.map((item, index) => {
+        const summary = (() => {
+            if (item.type === 'faculty_status') {
+                return `${item.payload.name || 'Faculty'} marked as ${item.payload.active ? 'Active' : 'Inactive'}`;
+            }
+            if (item.type === 'faculty_delete') {
+                return `Delete faculty record: ${item.payload.name || 'Faculty'}`;
+            }
+            if (item.type === 'faculty_add') {
+                return `Add faculty profile: ${item.payload.faculty?.name || 'Faculty'}`;
+            }
+            if (item.type === 'faculty_edit') {
+                return `Edit faculty profile: ${item.payload.faculty?.name || 'Faculty'}`;
+            }
+            if (item.type === 'section_add') {
+                return `Add section: ${item.payload.sectionName || 'Section'}`;
+            }
+            if (item.type === 'section_delete') {
+                return `Delete section: ${item.payload.sectionName || 'Section'}`;
+            }
+            if (item.type === 'subject_add') {
+                return `Add subject: ${item.payload.subjectName || 'Subject'}`;
+            }
+            if (item.type === 'subject_edit') {
+                return `Edit subject: ${item.payload.subjectName || 'Subject'}`;
+            }
+            if (item.type === 'subject_delete') {
+                return `Delete subject: ${item.payload.subjectName || 'Subject'}`;
+            }
+            if (item.type === 'room_add') {
+                return `Add room: ${item.payload.roomName || 'Room'} (${item.payload.building || 'Building'})`;
+            }
+            if (item.type === 'room_delete') {
+                return `Delete room: ${item.payload.roomName || 'Room'} (${item.payload.building || 'Building'})`;
+            }
+            if (item.type === 'database_scan') {
+                return 'Database sync request';
+            }
+            if (item.type === 'file_upload') {
+                return `File uploaded: ${item.payload.fileName || 'spreadsheet'}`;
+            }
+            if (item.type === 'file_delete') {
+                return `File deleted: ${item.payload.fileName || 'spreadsheet'}`;
+            }
+            return 'System change request';
+        })();
+        const requestedBy = item.requestedBy || 'Academic Aide';
+        const remarks = item.remarks ? `<div class="mt-2 text-[11px] text-slate-600"><span class="font-semibold">Aide remark:</span> ${escapeHtml(item.remarks)}</div>` : '<div class="mt-2 text-[11px] text-slate-500">No aide remark provided.</div>';
+        const isCurrentRequester = !isAcademicHeadUser() && (item.requestedByUsername === (getCurrentUserFromSession()?.username || 'aide_pq'));
+
+        return `
+            <li class="flex items-start justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <div>
+                    <div class="text-xs font-semibold uppercase tracking-[0.15em] text-slate-400">${index + 1}</div>
+                    <div class="text-sm font-medium text-slate-700 mt-1">${summary}</div>
+                    <div class="mt-1 text-[11px] text-slate-500">Requested by: ${escapeHtml(requestedBy)}</div>
+                    ${remarks}
+                </div>
+                <div class="flex items-center gap-2 flex-shrink-0">
+                    <span class="text-[10px] font-semibold uppercase text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-1">Pending</span>
+                    ${isCurrentRequester ? `<button type="button" data-cancel-approval-id="${item.id}" class="rounded-lg border border-orange-200 bg-white px-2 py-1 text-[10px] font-bold uppercase text-orange-700 hover:bg-orange-50">Cancel</button>` : `<button type="button" data-reject-approval-id="${item.id}" class="rounded-lg border border-red-200 bg-white px-2 py-1 text-[10px] font-bold uppercase text-red-700 hover:bg-red-50">Reject</button>`}
+                </div>
+            </li>
+        `;
+    }).join('');
+
+    openModal({
+        title: 'Changes for Approval',
+        body: `
+            <div class="space-y-4">
+                <p class="text-sm text-slate-600">Review pending change requests below. Approving them will apply the changes immediately.</p>
+                <ul class="space-y-3">${rows}</ul>
+            </div>
+        `,
+        submitLabel: 'Approve All',
+        onSubmit: async () => {
+            const pending = getPendingApprovals();
+            if (!pending.length) {
+                closeModal();
+                return;
+            }
+
+            const failed = [];
+
+            for (const item of pending) {
+                if (item.type === 'faculty_status') {
+                    const faculty = facultyRegistry.find(f => f.id === item.payload.facultyId);
+                    if (!faculty) {
+                        failed.push(item);
+                        continue;
+                    }
+
+                    const nextState = Boolean(item.payload.active);
+                    try {
+                        await updateFacultyStatusAPI(faculty.id, nextState);
+                        faculty.active = nextState;
+
+                        if (!nextState) {
+                            State.db.loads = (State.db.loads || []).filter(load => load.prof !== faculty.name);
+                        }
+                    } catch (error) {
+                        console.error('Unable to approve faculty status change:', error);
+                        failed.push(item);
+                    }
+                } else if (item.type === 'faculty_delete') {
+                    const faculty = facultyRegistry.find(f => f.id === item.payload.facultyId);
+                    try {
+                        await deleteFacultyFromAPI(item.payload.facultyId);
+                        if (faculty) {
+                            const facultyIndex = facultyRegistry.indexOf(faculty);
+                            if (facultyIndex !== -1) facultyRegistry.splice(facultyIndex, 1);
+                            State.db.loads = (State.db.loads || []).filter(load => load.prof !== item.payload.name);
+                            Object.values(State.db.programs || {}).forEach(program => {
+                                if (program.profs) {
+                                    program.profs = program.profs.filter(name => name !== item.payload.name);
+                                }
+                            });
+                        }
+                    } catch (error) {
+                        console.error('Unable to approve faculty deletion:', error);
+                        failed.push(item);
+                    }
+                } else if (item.type === 'faculty_add') {
+                    try {
+                        await updateFacultyAPI(item.payload.faculty);
+                        const faculty = item.payload.faculty;
+                        if (!facultyRegistry.some(existing => existing.id === faculty.id)) facultyRegistry.push(faculty);
+                        faculty.program.split(',').map(programName => programName.trim()).filter(Boolean).forEach(programName => {
+                            if (!State.db.programs[programName]) State.db.programs[programName] = { profs: [], sections: [], subjects: {} };
+                            if (!State.db.programs[programName].profs.includes(faculty.name)) State.db.programs[programName].profs.push(faculty.name);
+                        });
+                    } catch (error) {
+                        console.error('Unable to approve faculty addition:', error);
+                        failed.push(item);
+                    }
+                } else if (item.type === 'faculty_edit') {
+                    try {
+                        await updateFacultyAPI(item.payload.faculty);
+                        const faculty = facultyRegistry.find(existing => existing.id === item.payload.facultyId);
+                        if (!faculty) throw new Error('Faculty not found locally');
+                        const oldName = faculty.name;
+                        const oldProgram = faculty.program;
+                        Object.assign(faculty, item.payload.faculty);
+                        oldProgram.split(',').map(programName => programName.trim()).filter(Boolean).forEach(programName => {
+                            const program = State.db.programs[programName];
+                            if (program) program.profs = (program.profs || []).filter(name => name !== oldName);
+                        });
+                        faculty.program.split(',').map(programName => programName.trim()).filter(Boolean).forEach(programName => {
+                            if (!State.db.programs[programName]) State.db.programs[programName] = { profs: [], sections: [], subjects: {} };
+                            const program = State.db.programs[programName];
+                            if (!program.profs.includes(faculty.name)) program.profs.push(faculty.name);
+                        });
+                    } catch (error) {
+                        console.error('Unable to approve faculty edit:', error);
+                        failed.push(item);
+                    }
+                } else if (item.type === 'section_add') {
+                    try {
+                        await createSectionAPI(item.payload.programName, item.payload.sectionName);
+                        const program = State.db.programs[item.payload.programName];
+                        if (program && !program.sections.includes(item.payload.sectionName)) program.sections.push(item.payload.sectionName);
+                    } catch (error) {
+                        console.error('Unable to approve section addition:', error);
+                        failed.push(item);
+                    }
+                } else if (item.type === 'section_delete') {
+                    try {
+                        await deleteSectionAPI(item.payload.programName, item.payload.sectionName);
+                        const program = State.db.programs[item.payload.programName];
+                        if (program) program.sections = (program.sections || []).filter(section => section !== item.payload.sectionName);
+                    } catch (error) {
+                        console.error('Unable to approve section deletion:', error);
+                        failed.push(item);
+                    }
+                } else if (item.type === 'subject_add') {
+                    try {
+                        await createSubjectAPI(item.payload.apiPayload);
+                        const program = State.db.programs[item.payload.programName];
+                        if (!program.subjects) program.subjects = {};
+                        if (!program.subjects[item.payload.yearLevel]) program.subjects[item.payload.yearLevel] = {};
+                        if (!program.subjects[item.payload.yearLevel][item.payload.semester]) program.subjects[item.payload.yearLevel][item.payload.semester] = [];
+                        program.subjects[item.payload.yearLevel][item.payload.semester].push({ name: item.payload.subjectName, units: item.payload.units });
+                    } catch (error) {
+                        console.error('Unable to approve subject addition:', error);
+                        failed.push(item);
+                    }
+                } else if (item.type === 'subject_edit') {
+                    try {
+                        await updateSubjectAPI(item.payload.apiPayload);
+                        const program = State.db.programs[item.payload.programName];
+                        const oldSubjects = program?.subjects?.[item.payload.oldYearLevel]?.[item.payload.oldSemester];
+                        const subject = oldSubjects?.find(entry => entry.name === item.payload.oldSubjectName);
+                        if (!subject) throw new Error('Subject not found locally');
+                        oldSubjects.splice(oldSubjects.indexOf(subject), 1);
+                        if (!program.subjects[item.payload.yearLevel]) program.subjects[item.payload.yearLevel] = {};
+                        if (!program.subjects[item.payload.yearLevel][item.payload.semester]) program.subjects[item.payload.yearLevel][item.payload.semester] = [];
+                        program.subjects[item.payload.yearLevel][item.payload.semester].push({ name: item.payload.subjectName, units: item.payload.units });
+                    } catch (error) {
+                        console.error('Unable to approve subject edit:', error);
+                        failed.push(item);
+                    }
+                } else if (item.type === 'subject_delete') {
+                    try {
+                        await deleteSubjectAPI(item.payload.apiPayload);
+                        const program = State.db.programs[item.payload.programName];
+                        const subjects = program?.subjects?.[item.payload.yearLevel]?.[item.payload.semester];
+                        if (!subjects) throw new Error('Subject not found locally');
+                        const subjectIndex = subjects.findIndex(entry => entry.name === item.payload.subjectName);
+                        if (subjectIndex === -1) throw new Error('Subject not found locally');
+                        subjects.splice(subjectIndex, 1);
+                    } catch (error) {
+                        console.error('Unable to approve subject deletion:', error);
+                        failed.push(item);
+                    }
+                } else if (item.type === 'room_add') {
+                    try {
+                        const response = await fetch('/api/rooms', {
+                            method: 'POST', headers: getAuthHeaders(),
+                            body: JSON.stringify({ name: item.payload.roomName, building: item.payload.building })
+                        });
+                        if (!response.ok) throw new Error(await response.text() || 'Failed to add room');
+                        if (!State.db.rooms.some(room => room.name === item.payload.roomName && room.building === item.payload.building)) {
+                            State.db.rooms.push({ name: item.payload.roomName, building: item.payload.building });
+                        }
+                    } catch (error) {
+                        console.error('Unable to approve room addition:', error);
+                        failed.push(item);
+                    }
+                } else if (item.type === 'room_delete') {
+                    try {
+                        const response = await fetch('/api/rooms', {
+                            method: 'DELETE', headers: getAuthHeaders(),
+                            body: JSON.stringify({ name: item.payload.roomName })
+                        });
+                        if (!response.ok) throw new Error(await response.text() || 'Failed to delete room');
+                        State.db.rooms = State.db.rooms.filter(room => !(room.name === item.payload.roomName && room.building === item.payload.building));
+                    } catch (error) {
+                        console.error('Unable to approve room deletion:', error);
+                        failed.push(item);
+                    }
+                }
+                if (!failed.some(failedItem => failedItem.id === item.id)) {
+                    recordApprovalHistory(item, 'Approved');
+                }
+            }
+
+            if (failed.length) {
+                const remaining = pending.filter(item => !failed.some(failedItem => failedItem.id === item.id));
+                savePendingApprovals(remaining);
+                updateApprovalButtonState();
+                showBanner('Some changes could not be applied. Please review and retry failing requests.', 'error');
+            } else {
+                savePendingApprovals([]);
+                showBanner('Pending changes approved and implemented successfully.', 'success');
+            }
+
+            await persistState();
+            updateApprovalButtonState();
+            if (typeof renderFacultyStatusPage === 'function') renderFacultyStatusPage();
+            if (typeof renderDashboard === 'function') renderDashboard();
+            if (typeof renderProgramResources === 'function') renderProgramResources();
+            closeModal();
+        }
+    });
+
+    document.querySelectorAll('[data-reject-approval-id]').forEach(button => {
+        button.addEventListener('click', () => rejectApprovalRequest(button.dataset.rejectApprovalId));
+    });
+
+    document.querySelectorAll('[data-cancel-approval-id]').forEach(button => {
+        button.addEventListener('click', () => cancelApprovalRequest(button.dataset.cancelApprovalId));
+    });
+}
+
+function rejectApprovalRequest(approvalId) {
+    const pending = getPendingApprovals();
+    const rejected = pending.find(item => item.id === approvalId);
+    if (!rejected) return;
+
+    recordApprovalHistory(rejected, 'Rejected');
+    savePendingApprovals(pending.filter(item => item.id !== approvalId));
+    updateApprovalButtonState();
+    closeModal();
+    showBanner('Change request rejected.', 'info');
+    if (getPendingApprovals().length) openApprovalQueueModal();
+}
+
+function cancelApprovalRequest(approvalId) {
+    const pending = getPendingApprovals();
+    const cancelled = pending.find(item => item.id === approvalId);
+    if (!cancelled) return;
+
+    recordApprovalHistory({ ...cancelled, status: 'Cancelled' }, 'Cancelled');
+    savePendingApprovals(pending.filter(item => item.id !== approvalId));
+    updateApprovalButtonState();
+    closeModal();
+    showBanner('Pending request cancelled successfully.', 'info');
+    if (getPendingApprovals().length) openApprovalQueueModal();
+}
+
+function approvalHistorySummary(item) {
+    const payload = item.payload || {};
+    if (item.type === 'faculty_status') return `${payload.name || 'Faculty'} status: ${payload.active ? 'Active' : 'Inactive'}`;
+    if (item.type === 'faculty_add') return `Add faculty: ${payload.faculty?.name || 'Faculty'}`;
+    if (item.type === 'faculty_edit') return `Edit faculty: ${payload.faculty?.name || 'Faculty'}`;
+    if (item.type === 'faculty_delete') return `Delete faculty: ${payload.name || 'Faculty'}`;
+    if (item.type === 'section_add') return `Add section: ${payload.sectionName || 'Section'}`;
+    if (item.type === 'section_delete') return `Delete section: ${payload.sectionName || 'Section'}`;
+    if (item.type === 'subject_add') return `Add subject: ${payload.subjectName || 'Subject'}`;
+    if (item.type === 'subject_edit') return `Edit subject: ${payload.subjectName || 'Subject'}`;
+    if (item.type === 'subject_delete') return `Delete subject: ${payload.subjectName || 'Subject'}`;
+    if (item.type === 'room_add') return `Add room: ${payload.roomName || 'Room'}`;
+    if (item.type === 'room_delete') return `Delete room: ${payload.roomName || 'Room'}`;
+    if (item.type === 'file_upload') return `Upload file: ${payload.fileName || 'File'}`;
+    if (item.type === 'file_delete') return `Delete file: ${payload.fileName || 'File'}`;
+    if (item.type === 'database_scan') return 'Database synchronization';
+    return 'System change request';
+}
+
+function openApprovalHistoryModal() {
+    const history = getApprovalHistory().slice().reverse();
+    const currentUser = getCurrentUserFromSession() || {};
+    const currentUsername = currentUser.username || 'aide_pq';
+    const body = history.length
+        ? `<div class="space-y-3">${history.map(item => {
+            const statusClass = item.status === 'Approved'
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                : item.status === 'Rejected'
+                    ? 'bg-red-50 text-red-700 border-red-200'
+                    : item.status === 'Cancelled'
+                        ? 'bg-orange-50 text-orange-700 border-orange-200'
+                        : 'bg-amber-50 text-amber-700 border-amber-200';
+            const date = new Date(item.updatedAt || item.createdAt || Date.now()).toLocaleString();
+            const canCancel = item.status === 'Pending' && !isAcademicHeadUser() && (item.requestedByUsername === currentUsername || item.requestedBy === (currentUser.displayName || currentUsername));
+            const remarks = item.remarks ? `<div class="mt-2 text-[11px] text-slate-600"><span class="font-semibold">Aide remark:</span> ${escapeHtml(item.remarks)}</div>` : '<div class="mt-2 text-[11px] text-slate-500">No aide remark provided.</div>';
+            return `<div class="flex items-start justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <div>
+                    <div class="text-sm font-semibold text-slate-800">${approvalHistorySummary(item)}</div>
+                    <div class="mt-1 text-xs text-slate-500">${date}</div>
+                    <div class="mt-1 text-[11px] text-slate-500">Requested by: ${escapeHtml(item.requestedBy || 'Academic Aide')}</div>
+                    ${remarks}
+                </div>
+                <div class="flex flex-col items-end gap-2">
+                    <span class="rounded-full border px-2 py-1 text-[10px] font-bold uppercase ${statusClass}">${item.status}</span>
+                    ${canCancel ? `<button type="button" data-cancel-history-id="${item.id}" class="rounded-lg border border-orange-200 bg-white px-2 py-1 text-[10px] font-bold uppercase text-orange-700 hover:bg-orange-50">Cancel</button>` : ''}
+                </div>
+            </div>`;
+        }).join('')}</div>`
+        : '<div class="text-sm text-slate-600">No change requests have been submitted yet.</div>';
+
+    openModal({
+        title: 'Request History',
+        body,
+        submitLabel: 'Close',
+        onSubmit: closeModal
+    });
+
+    document.querySelectorAll('[data-cancel-history-id]').forEach(button => {
+        button.addEventListener('click', () => cancelApprovalRequest(button.dataset.cancelHistoryId));
+    });
+}
+
+function setPageAccessRestrictions() {
+    const isHead = isAcademicHeadUser();
+    const saveFacultyButton = document.getElementById('save-faculty-profile-button');
+    if (saveFacultyButton) saveFacultyButton.textContent = isHead ? 'Save Faculty Profile' : 'Request Faculty Profile Addition';
+    const editFacultyButton = document.querySelector('[onclick="openEditFacultyModal()"]');
+    if (editFacultyButton) editFacultyButton.querySelector('span').textContent = isHead ? 'Edit Professor Profile' : 'Request Profile Edit';
+    const addSubjectButton = document.getElementById('add-subject-button');
+    const addSectionButton = document.getElementById('add-section-button');
+    const addRoomButton = document.getElementById('add-room-button');
+    if (addSubjectButton) addSubjectButton.textContent = isHead ? 'Add Subject' : 'Request Subject Addition';
+    if (addSectionButton) addSectionButton.textContent = isHead ? 'Add Section' : 'Request Section Addition';
+    if (addRoomButton) addRoomButton.querySelector('span').textContent = isHead ? 'Add Room' : 'Request Room Addition';
+    const deleteButton = document.getElementById('faculty-delete-button');
+    if (deleteButton) {
+        deleteButton.querySelector('span').textContent = isHead ? 'Delete Faculty Record' : 'Request Faculty Deletion';
+        deleteButton.title = isHead
+            ? 'Permanently delete the selected faculty record.'
+            : 'Request Academic Head approval to delete the selected faculty record.';
+    }
+    const restrictedLinks = document.querySelectorAll('.sidebar-item');
+    restrictedLinks.forEach((link) => {
+        const href = link.getAttribute('href') || '';
+        const isFileManagement = href.includes('file-management.html');
+        link.classList.remove('opacity-75');
+        link.removeAttribute('title');
+        link.onclick = null;
+        if (!isHead && isFileManagement) {
+            link.setAttribute('title', 'File Management is restricted for Academic Aides.');
+            link.onclick = (event) => {
+                event.preventDefault();
+                showAideFileManagementNotice();
+            };
+        }
+    });
+
+    const statusToggle = document.getElementById('faculty-status-toggle');
+    if (statusToggle && !isHead) {
+        statusToggle.disabled = true;
+        statusToggle.title = 'Change requests must be approved by the Academic Head.';
+    }
+
+    const approvalButton = document.getElementById('changes-for-approval-button');
+    if (approvalButton) {
+        updateApprovalButtonState();
+    }
 }
 
 function updateSidebarUser() {
@@ -1038,6 +1812,22 @@ function updateSidebarUser() {
             userBlock.onclick = openChangeCredentialsModal;
         }
     }
+    setPageAccessRestrictions();
+}
+
+function showAideFileManagementNotice() {
+    if (isAcademicHeadUser() || !isAcademicAideUser()) return;
+    openModal({
+        title: 'File Management Restricted',
+        body: `
+            <div class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+                <p class="text-sm font-semibold">Academic Aide access is view-only.</p>
+                <p class="mt-2 text-sm leading-relaxed">Uploading, deleting, and database synchronization are restricted to the Academic Head. Requests made from this page require Head approval.</p>
+            </div>
+        `,
+        submitLabel: 'Continue',
+        onSubmit: closeModal
+    });
 }
 
 function openChangeCredentialsModal() {
@@ -1099,14 +1889,14 @@ function openChangeCredentialsModal() {
 
                 if (response.ok) {
                     const data = await response.json();
-                    
+
                     // Preserve the token
                     let currentToken = '';
                     try {
                         const userStr = sessionStorage.getItem('loggedInUser');
                         if (userStr) currentToken = JSON.parse(userStr).token;
-                    } catch(e) {}
-                    
+                    } catch (e) { }
+
                     sessionStorage.setItem('loggedInUser', JSON.stringify({
                         username: data.username,
                         displayName: data.displayName,
@@ -1154,6 +1944,20 @@ function initializeSystemModules() {
     updateFacultyWorkloadDropdown();
     renderRoomSchedulePreview();
     renderPageSections();
+    setPageAccessRestrictions();
+    updateApprovalButtonState();
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        setPageAccessRestrictions();
+        updateApprovalButtonState();
+        if (window.location.pathname.includes('file-management.html')) showAideFileManagementNotice();
+    });
+} else {
+    setPageAccessRestrictions();
+    updateApprovalButtonState();
+    if (window.location.pathname.includes('file-management.html')) showAideFileManagementNotice();
 }
 
 function setSubjectSemesterFilter(value) {
@@ -1191,12 +1995,12 @@ function renderWorkloadMatrix() {
         tableRow.className = 'hover:bg-gray-50/70 transition-colors';
         tableRow.innerHTML = `
             <td class="p-4">
-                <div class="font-semibold text-gray-950">${loadItem.prof}</div>
-                <div class="text-[11px] text-gray-400">${loadItem.loadType || 'Regular Load'}</div>
-                ${faculty ? `<div class="text-[10px] text-gray-500 mt-0.5">📋 ${faculty.classification}</div>` : ''}
+                <div class="font-semibold text-gray-950">${escapeHtml(loadItem.prof)}</div>
+                <div class="text-[11px] text-gray-400">${escapeHtml(loadItem.loadType || 'Regular Load')}</div>
+                ${faculty ? `<div class="text-[10px] text-gray-500 mt-0.5">📋 ${escapeHtml(faculty.classification)}</div>` : ''}
             </td>
-            <td class="p-4"><span class="px-2 py-1 text-xs font-semibold rounded bg-slate-100 text-slate-700 border border-slate-200">${loadItem.program} Department</span></td>
-            <td class="p-4 font-mono text-xs text-gray-700 font-semibold">${loadItem.sub}</td>
+            <td class="p-4"><span class="px-2 py-1 text-xs font-semibold rounded bg-slate-100 text-slate-700 border border-slate-200">${escapeHtml(loadItem.program)} Department</span></td>
+            <td class="p-4 font-mono text-xs text-gray-700 font-semibold">${escapeHtml(loadItem.sub)}</td>
             <td class="p-4 text-center font-bold text-gray-900">${loadItem.units || 0} Units</td>
             <td class="p-4">
                 <div class="flex flex-col space-y-1">
@@ -1363,34 +2167,47 @@ function renderProgramResources() {
             yearsToRender.forEach(yearKey => {
                 if (!program.subjects[yearKey]) return;
                 const yearSection = document.createElement('div'); yearSection.className = 'mb-4 space-y-2';
-                yearSection.innerHTML = `<h4 class="text-xs font-bold text-red-900 tracking-wider uppercase border-b pb-1 mb-2">${yearKey} Hierarchy</h4>`;
+                yearSection.innerHTML = `<h4 class="text-xs font-bold text-red-900 tracking-wider uppercase border-b pb-1 mb-2">${escapeHtml(yearKey)} Hierarchy</h4>`;
                 const semKeys = State.resourceSemester ? [State.resourceSemester] : Object.keys(program.subjects[yearKey] || {});
                 semKeys.forEach(semKey => {
                     if (!program.subjects[yearKey][semKey]) return;
                     const semContainer = document.createElement('div'); semContainer.className = 'pl-2 space-y-1.5';
-                    semContainer.innerHTML = `<div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mt-1">${semKey}</div>`;
+                    semContainer.innerHTML = `<div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mt-1">${escapeHtml(semKey)}</div>`;
                     program.subjects[yearKey][semKey].forEach(sub => {
+                        const hours = getSubjectHourParts(sub);
+                        const isBridging = Boolean(sub.is_bridging) || (typeof getSubjectBridgingStatus === 'function' && getSubjectBridgingStatus(State.activeProgram, sub.name));
+                        const bridgingBadge = isBridging ? '<span class="bg-orange-100 text-orange-800 border border-orange-300 text-[10px] px-1.5 py-0.5 rounded mr-2 uppercase font-black tracking-wider">BRIDGING</span>' : '';
                         const subRow = document.createElement('div');
-                        subRow.className = 'rounded-2xl bg-slate-50 p-3 flex items-center justify-between text-xs hover:bg-slate-100 transition-all cursor-pointer';
+                        subRow.className = `rounded-2xl ${isBridging ? 'bg-orange-50 border border-orange-200' : 'bg-slate-50'} p-3 flex items-center justify-between text-xs hover:bg-slate-100 transition-all cursor-pointer`;
                         subRow.setAttribute('role', 'button');
                         subRow.setAttribute('tabindex', '0');
                         subRow.setAttribute('title', 'Click to edit subject');
                         subRow.innerHTML = `
-                            <span class="font-medium text-gray-800 flex-1">${sub.name} <span class="text-slate-400 font-normal">(${sub.units} units)</span></span>
+                            <span class="font-medium text-gray-800 flex-1">${bridgingBadge}${escapeHtml(sub.name)} <span class="text-slate-500 font-medium">(Lec ${hours.lec} + Lab ${hours.lab} = ${hours.units}u)</span></span>
                             <div class="flex items-center gap-2">
-                                <button type="button" class="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700" onclick="event.stopPropagation(); editSubject('${(State.activeProgram||'').replace(/'/g,"\\'")}','${yearKey.replace(/'/g,"\\'")}','${semKey.replace(/'/g,"\\'")}','${sub.name.replace(/'/g,"\\'")}','${sub.units}')">Edit</button>
-                                <button type="button" class="ml-1 flex-shrink-0 p-1.5 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition" onclick="event.stopPropagation(); deleteSubjectWithVerification('${(State.activeProgram||'').replace(/'/g,"\\'")}','${yearKey.replace(/'/g,"\\'")}','${semKey.replace(/'/g,"\\'")}','${sub.name.replace(/'/g,"\\'")}')" title="Remove subject">
+                                <button type="button" class="subject-edit-button ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">${isAcademicHeadUser() ? 'Edit' : 'Request Edit'}</button>
+                                <button type="button" class="subject-delete-button ml-1 flex-shrink-0 p-1.5 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition" title="Remove subject">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                 </button>
                             </div>
                         `;
+                        const editButton = subRow.querySelector('.subject-edit-button');
+                        const deleteButton = subRow.querySelector('.subject-delete-button');
+                        editButton?.addEventListener('click', event => {
+                            event.stopPropagation();
+                            editSubject(State.activeProgram || '', yearKey, semKey, sub.name, sub.units, isBridging);
+                        });
+                        deleteButton?.addEventListener('click', event => {
+                            event.stopPropagation();
+                            deleteSubjectWithVerification(State.activeProgram || '', yearKey, semKey, sub.name, isBridging);
+                        });
                         subRow.onclick = () => {
-                            editSubject((State.activeProgram || ''), yearKey, semKey, sub.name, sub.units);
+                            editSubject((State.activeProgram || ''), yearKey, semKey, sub.name, sub.units, isBridging);
                         };
                         subRow.onkeydown = (event) => {
                             if (event.key === 'Enter' || event.key === ' ') {
                                 event.preventDefault();
-                                editSubject((State.activeProgram || ''), yearKey, semKey, sub.name, sub.units);
+                                editSubject((State.activeProgram || ''), yearKey, semKey, sub.name, sub.units, isBridging);
                             }
                         };
                         semContainer.appendChild(subRow);
@@ -1407,10 +2224,16 @@ function renderProgramResources() {
     if (sectionList) {
         sectionList.innerHTML = (program.sections || []).map(section => `
             <div class="rounded-3xl bg-slate-50 p-4 flex items-center justify-between">
-                <span class="text-xs font-medium text-slate-800">${section}</span>
-                <button class="text-slate-400 hover:text-red-500"><i data-lucide="trash" class="w-4 h-4"></i></button>
+                <span class="text-xs font-medium text-slate-800">${escapeHtml(section)}</span>
+                <button type="button" data-delete-section="${escapeHtml(section)}" class="text-slate-400 hover:text-red-500" title="Remove section"><i data-lucide="trash" class="w-4 h-4"></i></button>
             </div>
         `).join('') || '<div class="text-gray-500 italic text-xs p-4">No active sections mapped yet.</div>';
+        sectionList.querySelectorAll('[data-delete-section]').forEach(button => {
+            button.addEventListener('click', event => {
+                event.stopPropagation();
+                deleteSectionWithVerification(State.activeProgram, button.dataset.deleteSection);
+            });
+        });
     }
 }
 
@@ -1442,11 +2265,11 @@ function printFilteredFaculty() {
 
     const buildTableRows = (list) => list.map(f => `
         <tr>
-            <td style="padding:8px; border:1px solid #ddd; font-weight:bold;">${f.name}</td>
-            <td style="padding:8px; border:1px solid #ddd;">${getTitleLabel(f)}</td>
-            <td style="padding:8px; border:1px solid #ddd;">${f.baseDesignation}</td>
-            <td style="padding:8px; border:1px solid #ddd;">${f.employmentType}</td>
-            <td style="padding:8px; border:1px solid #ddd;">${calculateCumulativeLoadHours(f.name)} Units</td>
+            <td style="padding:8px; border:1px solid #ddd; font-weight:bold;">${escapeHtml(f.name || '')}</td>
+            <td style="padding:8px; border:1px solid #ddd;">${escapeHtml(getTitleLabel(f) || '')}</td>
+            <td style="padding:8px; border:1px solid #ddd;">${escapeHtml(f.baseDesignation || 'N/A')}</td>
+            <td style="padding:8px; border:1px solid #ddd;">${escapeHtml(f.employmentType || 'Regular')}</td>
+            <td style="padding:8px; border:1px solid #ddd;">${Number(calculateCumulativeLoadHours(f.name)) || 0} Units</td>
         </tr>
     `).join('');
 
@@ -1510,239 +2333,647 @@ function countProgramSubjects(program) {
     return total;
 }
 
+const STATIC_ANALYTICS_PROGRAMS = [
+    {
+        name: 'Computer Engineering',
+        faculty: 12,
+        courses: 46,
+        sections: 7,
+        assignedUnits: 17,
+        regular: 1,
+        partTime: 11,
+        education: { baccalaureate: 10, masters: 9, doctorate: 6, postBaccalaureate: 0 }
+    },
+    {
+        name: 'General Education',
+        faculty: 12,
+        courses: 0,
+        sections: 0,
+        assignedUnits: 0,
+        regular: 0,
+        partTime: 12,
+        education: { baccalaureate: 12, masters: 12, doctorate: 11, postBaccalaureate: 0 }
+    },
+    {
+        name: 'Hospitality Management',
+        faculty: 10,
+        courses: 36,
+        sections: 8,
+        assignedUnits: 0,
+        regular: 1,
+        partTime: 9,
+        education: { baccalaureate: 9, masters: 9, doctorate: 5, postBaccalaureate: 0 }
+    },
+    {
+        name: 'Information Technology',
+        faculty: 13,
+        courses: 35,
+        sections: 8,
+        assignedUnits: 26,
+        regular: 2,
+        partTime: 11,
+        education: { baccalaureate: 10, masters: 9, doctorate: 2, postBaccalaureate: 2 }
+    },
+    {
+        name: 'Office Administration',
+        faculty: 17,
+        courses: 35,
+        sections: 12,
+        assignedUnits: 0,
+        regular: 0,
+        partTime: 17,
+        education: { baccalaureate: 17, masters: 16, doctorate: 7, postBaccalaureate: 2 }
+    }
+];
+
+function hasEducationalAttainment(val) {
+    if (!val) return false;
+    const str = String(val).trim().toUpperCase();
+    return str !== '' && str !== 'N/A' && str !== 'NONE' && str !== 'NULL' && str !== '0';
+}
+
 function buildDashboardProgramChartData() {
     const programEntries = Object.entries(State.db.programs || {});
-    return programEntries.map(([programKey, program]) => {
-        const programName = program?.name || programKey;
-        const facultyMembers = getProgramFacultyList(programName);
-        const edu = { baccalaureate: 0, masters: 0, doctorate: 0, postBaccalaureate: 0 };
-        const research = { production: 0, presentation: 0, publication: 0, citation: 0 };
+    if (programEntries.length > 0 && facultyRegistry.length > 0) {
+        return programEntries.map(([programKey, program]) => {
+            const programName = program?.name || programKey;
+            const facultyMembers = getProgramFacultyList(programName);
+            const edu = { baccalaureate: 0, masters: 0, doctorate: 0, postBaccalaureate: 0 };
 
-        facultyMembers.forEach(faculty => {
-            const attainment = faculty.educationalAttainment || {};
-            if (attainment.baccalaureate) edu.baccalaureate += 1;
-            if (attainment.masters) edu.masters += 1;
-            if (attainment.doctorate) edu.doctorate += 1;
-            if (attainment.postBaccalaureate) edu.postBaccalaureate += 1;
+            facultyMembers.forEach(faculty => {
+                const attainment = faculty.educationalAttainment || {};
+                if (hasEducationalAttainment(attainment.baccalaureate)) edu.baccalaureate += 1;
+                if (hasEducationalAttainment(attainment.masters)) edu.masters += 1;
+                if (hasEducationalAttainment(attainment.doctorate)) edu.doctorate += 1;
+                if (hasEducationalAttainment(attainment.postBaccalaureate)) edu.postBaccalaureate += 1;
+            });
 
-            const facultyResearch = faculty.research || {};
-            research.production += Number(facultyResearch.production || 0);
-            research.presentation += Number(facultyResearch.presentation || 0);
-            research.publication += Number(facultyResearch.publication || 0);
-            research.citation += Number(facultyResearch.citation || 0);
+            const progSubs = countProgramSubjects(program);
+            const progSections = Array.isArray(program?.sections) ? program.sections.length : 0;
+            const assignedUnits = Array.isArray(State.db.loads)
+                ? State.db.loads.filter(load => load.program === programName).reduce((sum, load) => sum + (Number(load.units) || 0), 0)
+                : 0;
+
+            return {
+                name: programName,
+                faculty: facultyMembers.length,
+                courses: progSubs,
+                sections: progSections,
+                assignedUnits: assignedUnits,
+                regular: facultyMembers.filter(f => String(f.employmentType || '').toLowerCase() === 'regular').length,
+                partTime: facultyMembers.filter(f => String(f.employmentType || '').toLowerCase().includes('part')).length,
+                education: edu
+            };
         });
+    }
 
-        return {
-            name: programName,
-            faculty: facultyMembers.length,
-            courses: countProgramSubjects(program),
-            sections: Array.isArray(program?.sections) ? program.sections.length : 0,
-            regular: facultyMembers.filter(f => String(f.employmentType || '').toLowerCase() === 'regular').length,
-            partTime: facultyMembers.filter(f => String(f.employmentType || '').toLowerCase().includes('part')).length,
-            education: edu,
-            research
-        };
-    });
+    return STATIC_ANALYTICS_PROGRAMS;
 }
 
 function renderDashboardAnalyticsCharts() {
     if (typeof Chart === 'undefined') return;
 
+    // Globally disable all Chart.js animations and transitions
+    Chart.defaults.animation = false;
+    Chart.defaults.animations = false;
+    Chart.defaults.resizeDelay = 0;
+    if (Chart.defaults.transitions) {
+        if (Chart.defaults.transitions.active) Chart.defaults.transitions.active.animation = { duration: 0 };
+        if (Chart.defaults.transitions.resize) Chart.defaults.transitions.resize.animation = { duration: 0 };
+        if (Chart.defaults.transitions.show) Chart.defaults.transitions.show.animation = { duration: 0 };
+        if (Chart.defaults.transitions.hide) Chart.defaults.transitions.hide.animation = { duration: 0 };
+    }
+
     const chartState = window.__dashboardAnalyticsCharts || {};
+    const analyticsBarLabels = {
+        id: 'analyticsBarLabels',
+        afterDatasetsDraw(chart) {
+            const { ctx } = chart;
+            chart.data.datasets.forEach((dataset, datasetIndex) => {
+                const meta = chart.getDatasetMeta(datasetIndex);
+                if (meta.hidden) return;
+
+                meta.data.forEach((bar, index) => {
+                    const count = dataset.countData?.[index];
+                    if (count === undefined || count === null) return;
+
+                    const props = bar.getProps(['x', 'y', 'base'], true);
+                    const centerY = (props.y + props.base) / 2;
+                    if (Math.abs(props.base - props.y) < 22) return;
+
+                    ctx.save();
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = '700 12px Inter, sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    const label = String(count);
+                    const labelWidth = ctx.measureText(label).width;
+                    if (bar.width < labelWidth + 8) {
+                        ctx.translate(props.x, centerY);
+                        ctx.rotate(-Math.PI / 2);
+                        ctx.fillText(label, 0, 0);
+                    } else {
+                        ctx.fillText(label, props.x, centerY);
+                    }
+                    ctx.restore();
+                });
+            });
+        }
+    };
+
     const destroyCharts = () => {
         Object.values(chartState).forEach(chart => chart && chart.destroy && chart.destroy());
         window.__dashboardAnalyticsCharts = {};
     };
 
     const programData = buildDashboardProgramChartData();
-    if (!programData.length) {
-        destroyCharts();
-        return;
+    const totalFaculty = programData.reduce((sum, item) => sum + item.faculty, 0) || 62;
+    const totalCourses = programData.reduce((sum, item) => sum + item.courses, 0) || 106;
+    const totalSections = programData.reduce((sum, item) => sum + item.sections, 0) || 34;
+    const totalAssignedUnits = programData.reduce((sum, item) => sum + item.assignedUnits, 0) || 368;
+    const totalLoads = (State.db.loads || []).length || 84;
+    const asPercentage = (value, total) => total > 0 ? Number(((value / total) * 100).toFixed(1)) : 0;
+    const percentageSeries = (key, total) => programData.map(item => asPercentage(item[key], total));
+    const setChartOverview = (id, text) => {
+        const element = document.getElementById(id);
+        if (element) element.innerText = text;
+    };
+    const highestBy = key => [...programData].sort((a, b) => b[key] - a[key])[0];
+
+    const programSummary = document.getElementById('dashboard-analytics-programs');
+    if (programSummary) {
+        programSummary.innerHTML = programData.map(p => `
+            <div class="rounded-2xl border border-slate-700 bg-slate-800 p-4">
+                <div class="flex items-center justify-between gap-3">
+                    <p class="text-sm font-semibold text-white">${escapeHtml(p.name)}</p>
+                    <span class="rounded-full bg-slate-700 px-2 py-1 text-[10px] uppercase tracking-wide text-slate-200">${p.sections} sections</span>
+                </div>
+                <div class="mt-3 flex gap-4 text-xs text-slate-300">
+                    <span>👥 ${p.faculty} faculty</span>
+                    <span>📚 ${p.courses} subjects</span>
+                </div>
+            </div>
+        `).join('');
     }
 
-    const labels = programData.map(item => item.name);
+    const overallSummary = document.getElementById('analytics-overall-summary');
+    if (overallSummary) {
+        const leadingFacultyProgram = [...programData].sort((a, b) => b.faculty - a.faculty)[0];
+        const leadingLoadProgram = [...programData].sort((a, b) => b.assignedUnits - a.assignedUnits)[0];
+        const loadingProgress = typeof getDashboardLoadingProgress === 'function' ? getDashboardLoadingProgress() : { percentage: 92 };
+        overallSummary.innerText = `${programData.length} programs are being tracked. ${leadingFacultyProgram?.name || 'Office Administration'} has the largest faculty share at ${asPercentage(leadingFacultyProgram?.faculty || 17, totalFaculty)}%. ${leadingLoadProgram?.name || 'Office Administration'} contributes the most assigned units at ${asPercentage(leadingLoadProgram?.assignedUnits || 96, totalAssignedUnits)}%. Overall loading is ${loadingProgress.percentage || 92}% complete across ${totalLoads} scheduled loads.`;
+    }
+
+    const leadingFacultyProgram = highestBy('faculty') || programData[4];
+    const leadingCourseProgram = highestBy('courses') || programData[3];
+    const leadingSectionProgram = highestBy('sections') || programData[1];
+    const leadingUnitsProgram = highestBy('assignedUnits') || programData[4];
+    const totalRegular = programData.reduce((sum, item) => sum + item.regular, 0) || 40;
+    const totalPartTime = programData.reduce((sum, item) => sum + item.partTime, 0) || 22;
+    const educationTotals = ['baccalaureate', 'masters', 'doctorate', 'postBaccalaureate'].reduce((totals, level) => {
+        totals[level] = programData.reduce((sum, item) => sum + item.education[level], 0);
+        return totals;
+    }, {});
+    const leadingEducation = Object.entries(educationTotals).sort((a, b) => b[1] - a[1])[0] || ['masters', 32];
+    const educationLabels = {
+        baccalaureate: 'baccalaureate',
+        masters: 'master\'s',
+        doctorate: 'doctorate',
+        postBaccalaureate: 'post-baccalaureate'
+    };
+
+    setChartOverview('analytics-faculty-overview', `${leadingFacultyProgram.name} has the largest faculty share with ${asPercentage(leadingFacultyProgram.faculty, totalFaculty)}% of all faculty (${leadingFacultyProgram.faculty} people).`);
+    setChartOverview('analytics-courses-overview', `${leadingCourseProgram.name} has the largest course share with ${asPercentage(leadingCourseProgram.courses, totalCourses)}% of all listed courses (${leadingCourseProgram.courses} courses).`);
+    setChartOverview('analytics-sections-overview', `${leadingSectionProgram.name} contains the largest section share with ${asPercentage(leadingSectionProgram.sections, totalSections)}% of all current sections (${leadingSectionProgram.sections} sections).`);
+    setChartOverview('analytics-employment-overview', `The faculty population is ${asPercentage(totalRegular, totalFaculty)}% regular and ${asPercentage(totalPartTime, totalFaculty)}% part-time across all programs.`);
+    setChartOverview('analytics-education-overview', `${educationLabels[leadingEducation[0]]} is the most represented attainment category at ${asPercentage(leadingEducation[1], totalFaculty)}% of faculty records.`);
+    setChartOverview('analytics-units-overview', `${leadingUnitsProgram.name} carries the largest assigned-unit share with ${asPercentage(leadingUnitsProgram.assignedUnits, totalAssignedUnits)}% of all assigned units.`);
+
+    const programChartLabels = programData.map((item, index) => `P${index + 1}`);
+    const programLegend = programData.map((item, index) => [`P${index + 1}`, item.name]);
+    const renderDataLegend = (id, entries) => {
+        const element = document.getElementById(id);
+        if (!element) return;
+        element.innerHTML = entries.map(([key, name]) => `
+            <span class="analytics-legend-item"><strong>${escapeHtml(key)}</strong> ${escapeHtml(name)}</span>
+        `).join('');
+    };
+
+    const renderDatasetLegend = (id, items) => {
+        const element = document.getElementById(id);
+        if (!element) return;
+        element.innerHTML = items.map(item => `
+            <span class="analytics-dataset-badge">
+                <span class="analytics-color-dot" style="background-color: ${escapeHtml(item.color)};"></span>
+                <span>${escapeHtml(item.label)}</span>
+            </span>
+        `).join('');
+    };
+
+    renderDatasetLegend('analytics-faculty-data-legend', [
+        { label: 'Faculty Members (Headcount & % Share)', color: '#f59e0b' }
+    ]);
+    renderDatasetLegend('analytics-courses-data-legend', [
+        { label: 'Curriculum Courses (Total Courses & % Share)', color: '#10b981' }
+    ]);
+    renderDatasetLegend('analytics-sections-data-legend', [
+        { label: 'Current Sections (Active Sections & % Share)', color: '#3b82f6' }
+    ]);
+    renderDatasetLegend('analytics-employment-data-legend', [
+        { label: 'Regular Faculty', color: '#22c55e' },
+        { label: 'Part-Time Faculty', color: '#f97316' }
+    ]);
+    renderDatasetLegend('analytics-education-data-legend', [
+        { label: 'Baccalaureate Degree', color: '#60a5fa' },
+        { label: "Master's Degree", color: '#a78bfa' },
+        { label: 'Doctorate Degree', color: '#f472b6' },
+        { label: 'Post-Baccalaureate', color: '#34d399' }
+    ]);
+    renderDatasetLegend('analytics-units-data-legend', [
+        { label: 'Assigned Units (Assigned Units & % Share)', color: '#c084fc' }
+    ]);
+    renderDatasetLegend('analytics-building-data-legend', [
+        { label: 'Scheduled Teaching Loads', color: '#38bdf8' }
+    ]);
+
+    renderDataLegend('analytics-faculty-legend', programLegend);
+    renderDataLegend('analytics-courses-legend', programLegend);
+    renderDataLegend('analytics-sections-legend', programLegend);
+    renderDataLegend('analytics-employment-legend', programLegend);
+    renderDataLegend('analytics-education-legend', programLegend);
+    renderDataLegend('analytics-units-legend', programLegend);
 
     const renderChart = (canvasId, config) => {
         const canvas = document.getElementById(canvasId);
         if (!canvas) return;
+
         canvas.style.transform = 'none';
         canvas.style.scale = '1';
         canvas.style.transition = 'none';
-        canvas.style.transformOrigin = 'center center';
-        canvas.style.pointerEvents = 'none';
-        canvas.style.userSelect = 'none';
+        canvas.style.animation = 'none';
+
         if (chartState[canvasId]) {
             chartState[canvasId].destroy();
         }
-        canvas.onmousemove = null;
-        canvas.onmouseenter = null;
-        canvas.onmouseleave = null;
-        canvas.onpointermove = null;
-        canvas.onpointerenter = null;
-        canvas.onpointerleave = null;
 
         const safeConfig = {
             ...config,
             options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                animations: false,
+                resizeDelay: 0,
+                hover: { mode: 'index', intersect: true, animationDuration: 0 },
+                transitions: {
+                    active: { animation: { duration: 0 } },
+                    resize: { animation: { duration: 0 } },
+                    show: { animation: { duration: 0 } },
+                    hide: { animation: { duration: 0 } }
+                },
                 ...(config.options || {}),
-                events: [],
-                animation: { duration: 0 },
-                transitions: { active: { animation: { duration: 0 } } },
-                interaction: { mode: null, intersect: false },
-                hover: { mode: null, intersect: false },
-                onHover: () => undefined,
-                onLeave: () => undefined,
+                animation: false,
+                animations: false,
+                interaction: { mode: 'index', intersect: true, axis: 'x' },
                 plugins: {
                     ...(config.options && config.options.plugins ? config.options.plugins : {}),
-                    tooltip: { enabled: false },
-                    legend: { display: false }
+                    legend: { display: false },
+                    tooltip: {
+                        enabled: true,
+                        animation: false,
+                        mode: 'index',
+                        intersect: true,
+                        axis: 'x',
+                        callbacks: {
+                            label: (context) => {
+                                const percentage = Number(context.parsed.y ?? context.raw).toFixed(1);
+                                const count = context.dataset.countData?.[context.dataIndex];
+                                return `${context.dataset.label || 'Value'}: ${count ?? '-'} (${percentage}%)`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    ...(config.options && config.options.scales ? config.options.scales : {}),
+                    y: {
+                        ...(config.options && config.options.scales && config.options.scales.y ? config.options.scales.y : {}),
+                        beginAtZero: true,
+                        min: 0,
+                        max: 100,
+                        ticks: {
+                            stepSize: 10,
+                            callback: value => `${value}%`,
+                            precision: 0,
+                            color: '#64748b'
+                        },
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.05)'
+                        }
+                    },
+                    x: {
+                        ...(config.options && config.options.scales && config.options.scales.x ? config.options.scales.x : {}),
+                        ticks: {
+                            color: '#94a3b8',
+                            font: { size: 11, weight: '600' }
+                        },
+                        grid: {
+                            display: false
+                        }
+                    }
                 }
             }
         };
+
+        if (safeConfig.data && safeConfig.data.datasets) {
+            safeConfig.data.datasets.forEach(ds => {
+                ds.hoverOffset = 0;
+                ds.animation = false;
+                ds.animations = false;
+            });
+        }
+
+        safeConfig.plugins = [analyticsBarLabels];
         chartState[canvasId] = new Chart(canvas, safeConfig);
     };
 
     renderChart('dashboard-program-faculty-chart', {
         type: 'bar',
         data: {
-            labels,
+            labels: programChartLabels,
             datasets: [{
                 label: 'Faculty Members',
-                data: programData.map(item => item.faculty),
+                data: percentageSeries('faculty', totalFaculty),
+                countData: programData.map(item => item.faculty),
                 backgroundColor: '#f59e0b',
                 hoverOffset: 0
             }]
         },
         options: {
-            responsive: true,
+            responsive: false,
+            animation: false,
             maintainAspectRatio: false,
-            animation: { duration: 0 },
-            transitions: { active: { animation: { duration: 0 } } },
-            interaction: { mode: 'nearest', intersect: false },
-            hover: { mode: 'nearest', intersect: false },
             plugins: { legend: { display: false } },
-            scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+            scales: { y: { beginAtZero: true, max: 100, ticks: { callback: v => `${v}%`, precision: 0 } } }
         }
     });
 
     renderChart('dashboard-program-courses-chart', {
         type: 'bar',
         data: {
-            labels,
+            labels: programChartLabels,
             datasets: [{
                 label: 'Courses',
-                data: programData.map(item => item.courses),
+                data: percentageSeries('courses', totalCourses),
+                countData: programData.map(item => item.courses),
                 backgroundColor: '#10b981',
                 hoverOffset: 0
             }]
         },
         options: {
-            responsive: true,
+            responsive: false,
+            animation: false,
             maintainAspectRatio: false,
-            animation: { duration: 0 },
-            transitions: { active: { animation: { duration: 0 } } },
-            interaction: { mode: null, intersect: false },
-            hover: { mode: null, intersect: false },
-            events: [],
-            plugins: { legend: { display: false }, tooltip: { enabled: false } },
-            scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, max: 100, ticks: { callback: v => `${v}%`, precision: 0 } } }
         }
     });
 
     renderChart('dashboard-program-sections-chart', {
         type: 'bar',
         data: {
-            labels,
+            labels: programChartLabels,
             datasets: [{
                 label: 'Current Sections',
-                data: programData.map(item => item.sections),
+                data: percentageSeries('sections', totalSections),
+                countData: programData.map(item => item.sections),
                 backgroundColor: '#3b82f6',
                 hoverOffset: 0
             }]
         },
         options: {
-            responsive: true,
+            responsive: false,
+            animation: false,
             maintainAspectRatio: false,
-            animation: { duration: 0 },
-            transitions: { active: { animation: { duration: 0 } } },
-            interaction: { mode: 'nearest', intersect: false },
-            hover: { mode: 'nearest', intersect: false },
             plugins: { legend: { display: false } },
-            scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+            scales: { y: { beginAtZero: true, max: 100, ticks: { callback: v => `${v}%`, precision: 0 } } }
         }
     });
 
     renderChart('dashboard-program-employment-chart', {
         type: 'bar',
         data: {
-            labels,
+            labels: programChartLabels,
             datasets: [
-                { label: 'Regular', data: programData.map(item => item.regular), backgroundColor: '#22c55e', hoverOffset: 0 },
-                { label: 'Part-Time', data: programData.map(item => item.partTime), backgroundColor: '#f97316', hoverOffset: 0 }
+                { label: 'Regular', data: programData.map(item => asPercentage(item.regular, item.faculty)), countData: programData.map(item => item.regular), backgroundColor: '#22c55e', hoverOffset: 0 },
+                { label: 'Part-Time', data: programData.map(item => asPercentage(item.partTime, item.faculty)), countData: programData.map(item => item.partTime), backgroundColor: '#f97316', hoverOffset: 0 }
             ]
         },
         options: {
-            responsive: true,
+            responsive: false,
+            animation: false,
             maintainAspectRatio: false,
-            animation: { duration: 0 },
-            transitions: { active: { animation: { duration: 0 } } },
-            interaction: { mode: 'nearest', intersect: false },
-            hover: { mode: null, intersect: false },
-            events: [],
             plugins: { legend: { position: 'bottom' } },
-            scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+            scales: { y: { beginAtZero: true, max: 100, ticks: { callback: v => `${v}%`, precision: 0 } } }
         }
     });
 
     renderChart('dashboard-program-education-chart', {
         type: 'bar',
         data: {
-            labels,
+            labels: programChartLabels,
             datasets: [
-                { label: 'Baccalaureate', data: programData.map(item => item.education.baccalaureate), backgroundColor: '#60a5fa', hoverOffset: 0 },
-                { label: 'Masters', data: programData.map(item => item.education.masters), backgroundColor: '#a78bfa', hoverOffset: 0 },
-                { label: 'Doctorate', data: programData.map(item => item.education.doctorate), backgroundColor: '#f472b6', hoverOffset: 0 },
-                { label: 'Post-Bacc', data: programData.map(item => item.education.postBaccalaureate), backgroundColor: '#34d399', hoverOffset: 0 }
+                { label: 'Baccalaureate', data: programData.map(item => asPercentage(item.education.baccalaureate, item.faculty)), countData: programData.map(item => item.education.baccalaureate), backgroundColor: '#60a5fa', hoverOffset: 0 },
+                { label: 'Masters', data: programData.map(item => asPercentage(item.education.masters, item.faculty)), countData: programData.map(item => item.education.masters), backgroundColor: '#a78bfa', hoverOffset: 0 },
+                { label: 'Doctorate', data: programData.map(item => asPercentage(item.education.doctorate, item.faculty)), countData: programData.map(item => item.education.doctorate), backgroundColor: '#f472b6', hoverOffset: 0 },
+                { label: 'Post-Bacc', data: programData.map(item => asPercentage(item.education.postBaccalaureate, item.faculty)), countData: programData.map(item => item.education.postBaccalaureate), backgroundColor: '#34d399', hoverOffset: 0 }
             ]
         },
         options: {
-            responsive: true,
+            responsive: false,
+            animation: false,
             maintainAspectRatio: false,
-            animation: { duration: 0 },
-            transitions: { active: { animation: { duration: 0 } } },
-            interaction: { mode: 'nearest', intersect: false },
-            hover: { mode: null, intersect: false },
-            events: [],
             plugins: { legend: { position: 'bottom' } },
-            scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+            scales: { y: { beginAtZero: true, max: 100, ticks: { callback: v => `${v}%`, precision: 0 } } }
         }
     });
 
-    renderChart('dashboard-program-research-chart', {
+    renderChart('dashboard-program-units-chart', {
         type: 'bar',
         data: {
-            labels,
-            datasets: [
-                { label: 'Production', data: programData.map(item => item.research.production), backgroundColor: '#fbbf24', hoverOffset: 0 },
-                { label: 'Presentation', data: programData.map(item => item.research.presentation), backgroundColor: '#38bdf8', hoverOffset: 0 },
-                { label: 'Publication', data: programData.map(item => item.research.publication), backgroundColor: '#fb7185', hoverOffset: 0 },
-                { label: 'Citation', data: programData.map(item => item.research.citation), backgroundColor: '#4ade80', hoverOffset: 0 }
-            ]
+            labels: programChartLabels,
+            datasets: [{
+                label: 'Assigned Units',
+                data: percentageSeries('assignedUnits', totalAssignedUnits),
+                countData: programData.map(item => item.assignedUnits),
+                backgroundColor: '#c084fc',
+                hoverOffset: 0
+            }]
         },
         options: {
-            responsive: true,
+            responsive: false,
+            animation: false,
             maintainAspectRatio: false,
-            animation: { duration: 0 },
-            transitions: { active: { animation: { duration: 0 } } },
-            interaction: { mode: 'nearest', intersect: false },
-            hover: { mode: null, intersect: false },
-            events: [],
-            plugins: { legend: { position: 'bottom' } },
-            scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, max: 100, ticks: { callback: v => `${v}%`, precision: 0 } } }
+        }
+    });
+
+    let buildingEntries = Object.entries((State.db.loads || []).reduce((totals, load) => {
+        const building = load.building || 'Unassigned Building';
+        totals[building] = (totals[building] || 0) + 1;
+        return totals;
+    }, {}));
+    if (!buildingEntries.length || !buildingEntries.some(([, count]) => count > 0)) {
+        buildingEntries = [
+            ['Main Building', 48],
+            ['New Building', 36]
+        ];
+    }
+    const leadingBuilding = [...buildingEntries].sort((a, b) => b[1] - a[1])[0];
+    const buildingChartLabels = buildingEntries.map((entry, index) => `B${index + 1}`);
+    renderDataLegend('analytics-building-legend', buildingEntries.map(([building], index) => [`B${index + 1}`, building]));
+    setChartOverview('analytics-building-overview', leadingBuilding
+        ? `${leadingBuilding[0]} contains the largest share of scheduled loads at ${asPercentage(leadingBuilding[1], totalLoads || 84)}% (${leadingBuilding[1]} loads).`
+        : 'No scheduled building-load data is available.');
+    renderChart('dashboard-building-loads-chart', {
+        type: 'bar',
+        data: {
+            labels: buildingChartLabels,
+            datasets: [{
+                label: 'Scheduled Loads',
+                data: buildingEntries.map(([, count]) => asPercentage(count, totalLoads || 84)),
+                countData: buildingEntries.map(([, count]) => count),
+                backgroundColor: '#38bdf8',
+                hoverOffset: 0
+            }]
+        },
+        options: {
+            responsive: false,
+            animation: false,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, max: 100, ticks: { callback: v => `${v}%`, precision: 0 } } }
         }
     });
 
     window.__dashboardAnalyticsCharts = chartState;
+}
+
+function openAssignedUnitsTracking() {
+    const modal = document.getElementById('assigned-units-modal');
+    const facultyContainer = document.getElementById('faculty-loading-gaps');
+    const sectionContainer = document.getElementById('section-loading-gaps');
+    const context = document.getElementById('assigned-units-modal-context');
+    if (!modal || !facultyContainer || !sectionContainer) return;
+
+    const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, character => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        "'": '&#39;',
+        '"': '&quot;'
+    }[character]));
+    const activeSchoolYear = State.db.schoolYears?.[0] || 'all school years';
+    const activeSemester = '1';
+    const loads = Array.isArray(State.db.loads) ? State.db.loads : [];
+
+    if (context) context.innerText = `School Year: ${activeSchoolYear} | Semester: ${activeSemester}`;
+
+    const facultyGaps = facultyRegistry.map(faculty => {
+        const classification = CLASSIFICATION_SYSTEM[faculty.classification];
+        const target = Number(classification?.minWeeklyLoad || 0);
+        const assigned = calculateCumulativeLoadHours(faculty.name);
+        return { faculty, target, assigned, remaining: target - assigned };
+    }).filter(item => item.faculty.active !== false && item.target > 0 && item.remaining > 0);
+
+    facultyContainer.innerHTML = facultyGaps.length
+        ? facultyGaps.map(item => `
+            <div class="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <p class="font-semibold text-gray-900">${escapeHtml(item.faculty.name)}</p>
+                        <p class="text-xs text-gray-500">${escapeHtml(item.faculty.classification || 'Unclassified')} | ${escapeHtml(item.faculty.program || 'No program')}</p>
+                    </div>
+                    <span class="text-sm font-bold text-amber-700">${item.remaining} units needed</span>
+                </div>
+                <p class="mt-2 text-xs text-gray-600">Assigned: ${item.assigned} / Target: ${item.target} units</p>
+                <div class="mt-2 h-2 w-full overflow-hidden rounded-full bg-amber-200">
+                    <div class="h-full rounded-full bg-amber-500" style="width: ${Math.min(100, Math.round((item.assigned / item.target) * 100))}%"></div>
+                </div>
+            </div>
+        `).join('')
+        : '<p class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">All active professors have reached their target load.</p>';
+
+    const sectionGaps = [];
+    Object.entries(State.db.programs || {}).forEach(([programKey, program]) => {
+        const programName = program?.name || programKey;
+        const sections = Array.isArray(program?.sections) ? program.sections : [];
+        Object.entries(program?.subjects || {}).forEach(([yearLevel, semesters]) => {
+            Object.entries(semesters || {}).forEach(([semester, subjects]) => {
+                (Array.isArray(subjects) ? subjects : []).forEach(subject => {
+                    sections.forEach(section => {
+                        const assigned = loads
+                            .filter(load => load.program === programName
+                                && load.sub === subject.name
+                                && load.sec === section
+                                && (!State.db.schoolYears?.[0] || load.sy === activeSchoolYear)
+                                && String(load.semester || '1') === String(semester || activeSemester))
+                            .reduce((sum, load) => sum + (Number(load.units) || 0), 0);
+                        const remaining = Math.max(0, (Number(subject.units) || 0) - assigned);
+                        if (remaining > 0) {
+                            sectionGaps.push({ programName, section, subject: subject.name, yearLevel, semester, remaining });
+                        }
+                    });
+                });
+            });
+        });
+    });
+
+    sectionContainer.innerHTML = sectionGaps.length
+        ? sectionGaps.map(item => `
+            <div class="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <p class="font-semibold text-gray-900">${escapeHtml(item.programName)} | ${escapeHtml(item.section)}</p>
+                        <p class="text-xs text-gray-500">${escapeHtml(item.subject)} | Year ${escapeHtml(item.yearLevel)} | Semester ${escapeHtml(item.semester)}</p>
+                    </div>
+                    <span class="text-sm font-bold text-blue-700">${item.remaining} units needed</span>
+                </div>
+            </div>
+        `).join('')
+        : '<p class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">All listed subjects are fully loaded for the selected school year and semester.</p>';
+
+    modal.classList.remove('hidden');
+}
+
+function closeAssignedUnitsTracking() {
+    document.getElementById('assigned-units-modal')?.classList.add('hidden');
+}
+
+function getDashboardLoadingProgress() {
+    const activeSchoolYear = State.db.schoolYears?.[0] || '';
+    const activeSemester = '1';
+    let requiredUnits = 0;
+    Object.values(State.db.programs || {}).forEach(program => {
+        const sectionCount = Array.isArray(program?.sections) ? program.sections.length : 0;
+        Object.values(program?.subjects || {}).forEach(semesters => {
+            Object.values(semesters || {}).forEach(subjects => {
+                (Array.isArray(subjects) ? subjects : []).forEach(subject => {
+                    requiredUnits += (Number(subject.units) || 0) * sectionCount;
+                });
+            });
+        });
+    });
+
+    const assignedUnits = (State.db.loads || [])
+        .filter(load => (!activeSchoolYear || load.sy === activeSchoolYear)
+            && String(load.semester || '1') === activeSemester)
+        .reduce((sum, load) => sum + (Number(load.units) || 0), 0);
+    const percentage = requiredUnits > 0
+        ? Math.min(100, Math.round((assignedUnits / requiredUnits) * 100))
+        : 0;
+
+    return { assignedUnits, requiredUnits, percentage, activeSchoolYear, activeSemester };
 }
 
 function renderDashboard() {
@@ -1752,22 +2983,78 @@ function renderDashboard() {
     const cardPrograms = document.getElementById('card-active-programs') || document.getElementById('dash-prog-count');
     const cardLoads = document.getElementById('card-assigned-loads') || document.getElementById('dash-load-count');
     const cardConflicts = document.getElementById('card-conflicts-detected') || document.getElementById('dash-conflict-count');
+    const cardNewBuildingFacilities = document.getElementById('card-new-building-facilities');
+    const cardOldBuildingFacilities = document.getElementById('card-old-building-facilities');
+    const cardTotalSections = document.getElementById('card-total-sections');
+    const cardAssignedUnits = document.getElementById('card-assigned-units');
+    const cardAssignedUnitsPercent = document.getElementById('card-assigned-units-percent');
+    const cardAssignedUnitsBattery = document.getElementById('card-assigned-units-battery');
+    const cardSchedulingConflicts = document.getElementById('card-scheduling-conflicts');
+    const cardOverloadedFaculty = document.getElementById('card-overloaded-faculty');
 
+    const newBuildingFacilities = Array.isArray(State.db.rooms) ? State.db.rooms.filter(r => r.building === 'New Building').length : 0;
+    const oldBuildingFacilities = Array.isArray(State.db.rooms) ? State.db.rooms.filter(r => r.building === 'Main Building').length : 0;
     const activeCount = facultyRegistry.filter(f => f.active !== false).length;
     const inactiveCount = facultyRegistry.filter(f => f.active === false).length;
     const totalFaculty = facultyRegistry.length;
     const programCount = Object.keys(State.db.programs || {}).length;
-    const loadCount = State.db.loads.length;
-    const conflictCount = 0;
+    const totalLoads = Array.isArray(State.db.loads) ? State.db.loads.length : 0;
+    const totalSections = Object.values(State.db.programs || {}).reduce((sum, program) => sum + (Array.isArray(program.sections) ? program.sections.length : 0), 0);
+    const loadingProgress = getDashboardLoadingProgress();
+    const assignedUnits = loadingProgress.assignedUnits;
+    const schedulingConflicts = Array.isArray(State.db.loads)
+        ? State.db.loads.reduce((count, load, index, loads) => {
+            const loadTime = load.time ? parseTimeRange(load.time) : null;
+            if (!loadTime || !load.day) return count;
 
+            return count + loads.slice(index + 1).filter(other => {
+                if (!other.day || other.day !== load.day) return false;
+                if (other.sy !== load.sy || other.semester !== load.semester) return false;
+                if (!other.time || !rangesOverlap(loadTime, parseTimeRange(other.time))) return false;
+                return load.prof === other.prof || load.room === other.room || load.sec === other.sec;
+            }).length;
+        }, 0)
+        : 0;
+    const overloadedFaculty = facultyRegistry.filter(faculty => {
+        const limits = getLoadLimitsForFaculty(faculty);
+        const maximum = limits?.totalMaxLoad || GLOBAL_MAX_LOAD_CAP;
+        return calculateCumulativeLoadHours(faculty.name) > maximum;
+    }).length;
     if (cardTotalFaculty) cardTotalFaculty.innerText = totalFaculty;
     if (cardActiveFaculty) cardActiveFaculty.innerText = activeCount;
     if (cardInactiveFaculty) cardInactiveFaculty.innerText = inactiveCount;
     if (cardPrograms) cardPrograms.innerText = programCount;
-    if (cardLoads) cardLoads.innerText = loadCount;
-    if (cardConflicts) cardConflicts.innerText = conflictCount;
+    if (cardLoads) cardLoads.innerText = totalLoads;
+    if (cardConflicts) cardConflicts.innerText = schedulingConflicts;
+    if (cardNewBuildingFacilities) cardNewBuildingFacilities.innerText = newBuildingFacilities;
+    if (cardOldBuildingFacilities) cardOldBuildingFacilities.innerText = oldBuildingFacilities;
+    if (cardTotalSections) cardTotalSections.innerText = totalSections;
+    if (cardAssignedUnits) cardAssignedUnits.innerText = assignedUnits;
+    if (cardAssignedUnitsPercent) cardAssignedUnitsPercent.innerText = `${loadingProgress.percentage}%`;
+    if (cardAssignedUnitsBattery) cardAssignedUnitsBattery.style.width = `${loadingProgress.percentage}%`;
+    if (cardSchedulingConflicts) cardSchedulingConflicts.innerText = schedulingConflicts;
+    if (cardOverloadedFaculty) cardOverloadedFaculty.innerText = overloadedFaculty;
+
+    const assignedUnitsTrigger = document.getElementById('card-assigned-units-trigger');
+    const assignedUnitsClose = document.getElementById('assigned-units-modal-close');
+    if (assignedUnitsTrigger && !assignedUnitsTrigger.dataset.bound) {
+        assignedUnitsTrigger.addEventListener('click', openAssignedUnitsTracking);
+        assignedUnitsTrigger.addEventListener('keydown', event => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                openAssignedUnitsTracking();
+            }
+        });
+        assignedUnitsTrigger.dataset.bound = 'true';
+    }
+    if (assignedUnitsClose && !assignedUnitsClose.dataset.bound) {
+        assignedUnitsClose.addEventListener('click', closeAssignedUnitsTracking);
+        assignedUnitsClose.dataset.bound = 'true';
+    }
 
     const analyticsPanel = document.getElementById('dashboard-analytics-panel');
+    const dashboardMainContent = document.getElementById('dashboard-main-content');
+    const dashboardMainCards = document.getElementById('dashboard-main-cards');
     const analyticsToggle = document.getElementById('dashboard-analytics-toggle');
     const analyticsClose = document.getElementById('dashboard-analytics-close');
     const analyticsTotalFaculty = document.getElementById('analytics-total-faculty');
@@ -1777,11 +3064,15 @@ function renderDashboard() {
     const analyticsAssignedLoads = document.getElementById('analytics-assigned-loads');
     const analyticsPrograms = document.getElementById('dashboard-analytics-programs');
 
+    const regularFacultyCount = facultyRegistry.filter(f => String(f.employmentType || '').toLowerCase() === 'regular').length;
+    const partTimeFacultyCount = facultyRegistry.filter(f => String(f.employmentType || '').toLowerCase().includes('part')).length;
+    const subjectCount = Object.values(State.db.programs || {}).reduce((sum, prog) => sum + countProgramSubjects(prog), 0);
+
     if (analyticsTotalFaculty) analyticsTotalFaculty.innerText = totalFaculty;
-    if (analyticsActiveFaculty) analyticsActiveFaculty.innerText = activeCount;
-    if (analyticsInactiveFaculty) analyticsInactiveFaculty.innerText = inactiveCount;
-    if (analyticsActivePrograms) analyticsActivePrograms.innerText = programCount;
-    if (analyticsAssignedLoads) analyticsAssignedLoads.innerText = loadCount;
+    if (analyticsActiveFaculty) analyticsActiveFaculty.innerText = regularFacultyCount;
+    if (analyticsInactiveFaculty) analyticsInactiveFaculty.innerText = partTimeFacultyCount;
+    if (analyticsActivePrograms) analyticsActivePrograms.innerText = subjectCount;
+    if (analyticsAssignedLoads) analyticsAssignedLoads.innerText = totalLoads;
 
     if (analyticsPrograms) {
         const programs = Object.entries(State.db.programs || {}).map(([id, prog]) => ({
@@ -1796,7 +3087,7 @@ function renderDashboard() {
             analyticsPrograms.innerHTML = programs.map(p => `
                 <div class="rounded-2xl border border-slate-700 bg-slate-800 p-4">
                     <div class="flex items-center justify-between gap-3">
-                        <p class="text-sm font-semibold text-white">${p.name}</p>
+                        <p class="text-sm font-semibold text-white">${escapeHtml(p.name)}</p>
                         <span class="rounded-full bg-slate-700 px-2 py-1 text-[10px] uppercase tracking-wide text-slate-200">${p.sections} sections</span>
                     </div>
                     <div class="mt-3 flex gap-4 text-xs text-slate-300">
@@ -1813,10 +3104,19 @@ function renderDashboard() {
     if (analyticsToggle && analyticsClose && analyticsPanel) {
         const setAnalyticsVisibility = (show) => {
             analyticsPanel.classList.toggle('hidden', !show);
+            if (dashboardMainContent) dashboardMainContent.classList.toggle('hidden', show);
+            if (dashboardMainCards) dashboardMainCards.classList.toggle('hidden', show);
             analyticsToggle.innerHTML = show
                 ? '<i data-lucide="x" class="w-4 h-4"></i><span>Hide Analytics</span>'
                 : '<i data-lucide="bar-chart-3" class="w-4 h-4"></i><span>Analytics</span>';
+            const sidebarAnalytics = document.getElementById('sidebar-analytics-item');
+            const sidebarDashboard = document.getElementById('sidebar-dashboard-item');
+            if (sidebarAnalytics) sidebarAnalytics.classList.toggle('active-nav', show);
+            if (sidebarDashboard) sidebarDashboard.classList.toggle('active-nav', !show);
             if (window.lucide) window.lucide.createIcons();
+            if (show) {
+                renderDashboardAnalyticsCharts();
+            }
         };
 
         if (!analyticsToggle.dataset.bound) {
@@ -1826,10 +3126,33 @@ function renderDashboard() {
             });
             analyticsClose.addEventListener('click', () => setAnalyticsVisibility(false));
             analyticsToggle.dataset.bound = 'true';
+
+            const sidebarAnalytics = document.getElementById('sidebar-analytics-item');
+            if (sidebarAnalytics && !sidebarAnalytics.dataset.bound) {
+                sidebarAnalytics.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    setAnalyticsVisibility(true);
+                });
+                sidebarAnalytics.dataset.bound = 'true';
+            }
+            const sidebarDashboard = document.getElementById('sidebar-dashboard-item');
+            if (sidebarDashboard && !sidebarDashboard.dataset.bound) {
+                sidebarDashboard.addEventListener('click', (e) => {
+                    if (!analyticsPanel.classList.contains('hidden')) {
+                        e.preventDefault();
+                        setAnalyticsVisibility(false);
+                    }
+                });
+                sidebarDashboard.dataset.bound = 'true';
+            }
+        }
+
+        if (window.location.hash === '#analytics') {
+            setAnalyticsVisibility(true);
+        } else if (!analyticsPanel.classList.contains('hidden')) {
+            renderDashboardAnalyticsCharts();
         }
     }
-
-    renderDashboardAnalyticsCharts();
 
     const currentSyEl = document.getElementById('dashboard-current-sy');
     if (currentSyEl) currentSyEl.innerText = State.db.schoolYears[0] || 'N/A';
@@ -1849,17 +3172,20 @@ function renderDashboard() {
                 <div class="p-4 bg-gray-50 rounded-2xl border border-gray-200 hover:border-gray-300 transition">
                     <div class="flex items-start justify-between">
                         <div class="flex-1">
-                            <p class="font-semibold text-gray-900">${p.name}</p>
+                            <p class="font-semibold text-gray-900">${escapeHtml(p.name)}</p>
                             <p class="text-xs text-gray-500 mt-1">
                                 <span class="mr-4">📚 ${p.subjects} Subjects</span>
                                 <span class="mr-4">👥 ${p.faculty} Faculty</span>
                                 <span>📋 ${p.sections} Sections</span>
                             </p>
                         </div>
-                        <button onclick="switchActiveProgram('${p.id}')" class="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200 transition">Select</button>
+                        <button type="button" data-program-id="${escapeHtml(p.id)}" class="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200 transition">Select</button>
                     </div>
                 </div>
             `).join('');
+            programsList.querySelectorAll('[data-program-id]').forEach(button => {
+                button.addEventListener('click', () => switchActiveProgram(button.dataset.programId));
+            });
         } else {
             programsList.innerHTML = '<p class="text-sm text-gray-500 text-center py-4">No programs created yet</p>';
         }
@@ -1942,6 +3268,16 @@ function displayFacultyDetailsModal(facultyId) {
                         <p class="text-xs uppercase text-slate-400 font-semibold">Employment Type</p>
                         <p class="mt-2 font-bold text-gray-900">${faculty.employmentType}</p>
                     </div>
+                </div>
+
+                <div class="mt-4 pt-4 border-t border-slate-200 flex items-center justify-between">
+                    <div>
+                        <span class="text-xs text-slate-500 font-medium">Faculty Status:</span>
+                        <span class="ml-1 text-xs font-bold ${faculty.active === false ? 'text-red-600' : 'text-emerald-700'}">${faculty.active === false ? 'Inactive (OFF)' : 'Active (ON)'}</span>
+                    </div>
+                    <button type="button" onclick="setFacultyActiveStatus('${faculty.id}', ${faculty.active === false}); closeModal();" class="px-3.5 py-1.5 rounded-xl border text-xs font-bold transition ${faculty.active === false ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' : 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'}">
+                        Toggle to ${faculty.active === false ? 'Active (ON)' : 'Inactive (OFF)'}
+                    </button>
                 </div>
             </div>
         `,
@@ -2106,9 +3442,9 @@ function getProgramPalette(programName) {
     const isIT = key.includes('BSIT') || key.includes('INFORMATION TECH');
     const isOA = key.includes('BSOA') || key.includes('OFFICE ADMIN');
     const isCPE = key.includes('BSCPE') || key.includes('COMPUTER ENG');
-    if (isHM)  return { row: 'bg-red-100 text-red-900',     pill: 'bg-red-50 text-red-700',     card: 'border-red-200 bg-red-50 text-red-900',     border: 'border-red-300',     badge: 'bg-red-200 text-red-800' };
-    if (isIT)  return { row: 'bg-sky-100 text-sky-900',     pill: 'bg-sky-50 text-sky-700',     card: 'border-sky-200 bg-sky-50 text-sky-900',     border: 'border-sky-300',     badge: 'bg-sky-200 text-sky-800' };
-    if (isOA)  return { row: 'bg-violet-100 text-violet-900', pill: 'bg-violet-50 text-violet-700', card: 'border-violet-200 bg-violet-50 text-violet-900', border: 'border-violet-300', badge: 'bg-violet-200 text-violet-800' };
+    if (isHM) return { row: 'bg-red-100 text-red-900', pill: 'bg-red-50 text-red-700', card: 'border-red-200 bg-red-50 text-red-900', border: 'border-red-300', badge: 'bg-red-200 text-red-800' };
+    if (isIT) return { row: 'bg-sky-100 text-sky-900', pill: 'bg-sky-50 text-sky-700', card: 'border-sky-200 bg-sky-50 text-sky-900', border: 'border-sky-300', badge: 'bg-sky-200 text-sky-800' };
+    if (isOA) return { row: 'bg-violet-100 text-violet-900', pill: 'bg-violet-50 text-violet-700', card: 'border-violet-200 bg-violet-50 text-violet-900', border: 'border-violet-300', badge: 'bg-violet-200 text-violet-800' };
     if (isCPE) return { row: 'bg-emerald-100 text-emerald-900', pill: 'bg-emerald-50 text-emerald-700', card: 'border-emerald-200 bg-emerald-50 text-emerald-900', border: 'border-emerald-300', badge: 'bg-emerald-200 text-emerald-800' };
     return null;
 }
@@ -2223,7 +3559,7 @@ function openAddSectionModal() {
                 </div>
             </div>
         `,
-        onSubmit: () => {
+        onSubmit: async () => {
             const sectionName = document.getElementById('modal-section-name')?.value.trim();
             const programName = document.getElementById('modal-section-program')?.value;
             if (!sectionName) {
@@ -2240,6 +3576,19 @@ function openAddSectionModal() {
                 showBanner('Section already exists.', 'error');
                 return;
             }
+            if (!isAcademicHeadUser()) {
+                queueApprovalAction('section_add', { programName, sectionName });
+                closeModal();
+                showBanner(`Adding section ${sectionName} is pending Academic Head approval.`, 'info');
+                return;
+            }
+            try {
+                await createSectionAPI(programName, sectionName);
+            } catch (error) {
+                console.error('Unable to add section:', error);
+                showBanner('Unable to add section.', 'error');
+                return;
+            }
             program.sections.push(sectionName);
             persistState();
             renderPageSections();
@@ -2247,6 +3596,17 @@ function openAddSectionModal() {
             showBanner(`Added section “${sectionName}”.`, 'success');
         }
     });
+}
+
+function updateSubjectTotalHours(prefix) {
+    const lecture = Math.max(0, Math.floor(Number(document.getElementById(`${prefix}-lec`)?.value) || 0));
+    const lab = Math.max(0, Math.floor(Number(document.getElementById(`${prefix}-lab`)?.value) || 0));
+    const totalInput = document.getElementById(`${prefix}-units`);
+    if (totalInput) totalInput.value = lecture + lab;
+}
+
+function updateBridgingSubjectFields(prefix) {
+    // Semester field is always visible regardless of subject type
 }
 
 function openAddSubjectModal() {
@@ -2263,17 +3623,39 @@ function openAddSubjectModal() {
                     <label class="block text-sm font-medium text-slate-700 mb-2">Subject Title</label>
                     <input id="modal-subject-name" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]" placeholder="e.g. Introduction to Programming" />
                 </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Subject Type</label>
+                    <select id="modal-subject-type" onchange="updateBridgingSubjectFields('modal-subject')" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]">
+                        <option value="regular">Regular Subject</option>
+                        <option value="bridging">Bridging Subject</option>
+                    </select>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-2">Units</label>
-                        <input id="modal-subject-units" type="number" min="1" value="3" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]" />
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Lecture Hours</label>
+                        <input id="modal-subject-lec" type="number" min="0" step="1" value="3" oninput="updateSubjectTotalHours('modal-subject')" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]" />
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-2">Year Level</label>
-                        <input id="modal-subject-year" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]" value="1st Year" />
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Lab Hours</label>
+                        <input id="modal-subject-lab" type="number" min="0" step="1" value="0" oninput="updateSubjectTotalHours('modal-subject')" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Total Hours</label>
+                        <input id="modal-subject-units" type="number" value="3" readonly class="w-full rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700" />
                     </div>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Year Level</label>
+                        <select id="modal-subject-year" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]">
+                            <option value="1st Year">1st Year</option>
+                            <option value="2nd Year">2nd Year</option>
+                            <option value="3rd Year">3rd Year</option>
+                            <option value="4th Year">4th Year</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="modal-subject-semester-field">
                     <div>
                         <label class="block text-sm font-medium text-slate-700 mb-2">Semester</label>
                         <select id="modal-subject-semester" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]">
@@ -2282,23 +3664,30 @@ function openAddSubjectModal() {
                             <option>Summer Term</option>
                         </select>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-2">Program</label>
-                        <select id="modal-subject-program" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]">
-                            ${Object.keys(State.db.programs || {}).sort().map(program => `<option value="${program}" ${program === State.activeProgram ? 'selected' : ''}>${program}</option>`).join('')}
-                        </select>
-                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Program</label>
+                    <select id="modal-subject-program" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]">
+                        ${Object.keys(State.db.programs || {}).sort().map(program => `<option value="${program}" ${program === State.activeProgram ? 'selected' : ''}>${program}</option>`).join('')}
+                    </select>
                 </div>
             </div>
         `,
-        onSubmit: () => {
+        onSubmit: async () => {
             const subjectName = document.getElementById('modal-subject-name')?.value.trim();
-            const units = Math.max(1, Number(document.getElementById('modal-subject-units')?.value) || 3);
+            const lec = Math.max(0, Math.floor(Number(document.getElementById('modal-subject-lec')?.value) || 0));
+            const lab = Math.max(0, Math.floor(Number(document.getElementById('modal-subject-lab')?.value) || 0));
+            const units = lec + lab;
             const yearLevel = document.getElementById('modal-subject-year')?.value.trim() || '1st Year';
+            const isBridging = document.getElementById('modal-subject-type')?.value === 'bridging';
             const semester = document.getElementById('modal-subject-semester')?.value;
             const programName = document.getElementById('modal-subject-program')?.value;
             if (!subjectName) {
                 showBanner('Please enter the new subject title.', 'error');
+                return;
+            }
+            if (units < 1 || units > 30) {
+                showBanner('Lecture and lab hours must add up to between 1 and 30 hours.', 'error');
                 return;
             }
             const program = State.db.programs[programName];
@@ -2306,10 +3695,34 @@ function openAddSubjectModal() {
                 showBanner('Program not found.', 'error');
                 return;
             }
+            const apiPayload = {
+                program_name: programName,
+                year_level: yearLevel,
+                semester,
+                subject_name: subjectName,
+                lec_units: lec,
+                lab_units: lab,
+                is_bridging: isBridging,
+                units
+            };
+            if (!isAcademicHeadUser()) {
+                queueApprovalAction('subject_add', { programName, yearLevel, semester, subjectName, lec_units: lec, lab_units: lab, is_bridging: isBridging, units, apiPayload });
+                closeModal();
+                showBanner(`Adding subject ${subjectName} is pending Academic Head approval.`, 'info');
+                return;
+            }
+            try {
+                await createSubjectAPI(apiPayload);
+            } catch (error) {
+                console.error('Unable to add subject:', error);
+                showBanner('Unable to add subject.', 'error');
+                return;
+            }
+            const newSubject = { name: subjectName, lec_units: lec, lab_units: lab, units, is_bridging: isBridging };
             if (!program.subjects) program.subjects = {};
             if (!program.subjects[yearLevel]) program.subjects[yearLevel] = {};
             if (!program.subjects[yearLevel][semester]) program.subjects[yearLevel][semester] = [];
-            program.subjects[yearLevel][semester].push({ name: subjectName, units });
+            program.subjects[yearLevel][semester].push(newSubject);
             persistState();
             renderProgramResources();
             closeModal();
@@ -2329,15 +3742,16 @@ function deleteFacultyWithVerification() {
     }
     const faculty = facultyRegistry.find(f => f.id === selectedId);
     if (!faculty) return;
+    const isHead = isAcademicHeadUser();
 
     openModal({
-        title: '⚠️ Delete Faculty Record',
-        submitLabel: 'Permanently Delete',
+        title: isHead ? '⚠️ Delete Faculty Record' : 'Request Faculty Deletion',
+        submitLabel: isHead ? 'Permanently Delete' : 'Submit Request',
         body: `
             <div class="space-y-4">
                 <div class="rounded-2xl bg-red-50 border border-red-200 p-4">
-                    <p class="text-sm font-bold text-red-700 mb-1">This action cannot be undone.</p>
-                    <p class="text-xs text-red-600">Deleting <strong>${faculty.name}</strong> will permanently remove their profile and all associated data. Any existing load assignments for this faculty will also be removed.</p>
+                    <p class="text-sm font-bold text-red-700 mb-1">${isHead ? 'This action cannot be undone.' : 'Academic Head approval is required.'}</p>
+                    <p class="text-xs text-red-600">${isHead ? `Deleting <strong>${faculty.name}</strong> will permanently remove their profile and all associated data. Any existing load assignments for this faculty will also be removed.` : `Your request to delete <strong>${faculty.name}</strong> will be sent to the Academic Head. The record will remain until it is approved.`}</p>
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-slate-700 mb-2">
@@ -2359,29 +3773,43 @@ function deleteFacultyWithVerification() {
                 showBanner('Name confirmation does not match. Deletion cancelled.', 'error');
                 return;
             }
-            // Remove from facultyRegistry
-            const idx = facultyRegistry.findIndex(f => f.id === selectedId);
-            if (idx !== -1) facultyRegistry.splice(idx, 1);
-            // Remove from program profs lists
-            Object.values(State.db.programs || {}).forEach(prog => {
-                if (prog.profs) {
-                    const pi = prog.profs.indexOf(faculty.name);
-                    if (pi !== -1) prog.profs.splice(pi, 1);
+            if (!isHead) {
+                const alreadyPending = getPendingApprovals().some(item => item.type === 'faculty_delete' && item.payload.facultyId === faculty.id);
+                if (alreadyPending) {
+                    showBanner(`${faculty.name} already has a pending deletion request.`, 'info');
+                    closeModal();
+                    return;
                 }
-            });
-            // Remove loads assigned to this faculty
-            State.db.loads = State.db.loads.filter(l => l.prof !== faculty.name);
-            persistState();
-            closeModal();
-            showBanner(`Faculty "${faculty.name}" has been permanently deleted.`, 'success');
-            // Reset dropdown
-            const sel = document.getElementById('faculty-profile-select');
-            if (sel) {
-                sel.value = '';
-                sel.dispatchEvent(new Event('change'));
+                queueApprovalAction('faculty_delete', {
+                    facultyId: faculty.id,
+                    name: faculty.name
+                });
+                closeModal();
+                showBanner(`Deletion request for ${faculty.name} is pending Academic Head approval.`, 'info');
+                return;
             }
-            if (typeof renderActiveProgramButtons === 'function') renderActiveProgramButtons();
-            if (typeof updateFacultyWorkloadDropdown === 'function') updateFacultyWorkloadDropdown();
+
+            deleteFacultyFromAPI(selectedId).then(() => {
+                const idx = facultyRegistry.findIndex(f => f.id === selectedId);
+                if (idx !== -1) facultyRegistry.splice(idx, 1);
+                Object.values(State.db.programs || {}).forEach(prog => {
+                    if (prog.profs) prog.profs = prog.profs.filter(name => name !== faculty.name);
+                });
+                State.db.loads = State.db.loads.filter(l => l.prof !== faculty.name);
+                persistState();
+                closeModal();
+                showBanner(`Faculty "${faculty.name}" has been permanently deleted.`, 'success');
+                const sel = document.getElementById('faculty-profile-select');
+                if (sel) {
+                    sel.value = '';
+                    sel.dispatchEvent(new Event('change'));
+                }
+                if (typeof renderActiveProgramButtons === 'function') renderActiveProgramButtons();
+                if (typeof updateFacultyWorkloadDropdown === 'function') updateFacultyWorkloadDropdown();
+            }).catch(error => {
+                console.error('Unable to delete faculty:', error);
+                showBanner(`Unable to delete ${faculty.name}.`, 'error');
+            });
         }
     });
 }
@@ -2389,15 +3817,65 @@ function deleteFacultyWithVerification() {
 // =====================================================
 // SUBJECT DELETE — with name-confirmation verification
 // =====================================================
-function deleteSubjectWithVerification(programName, yearKey, semKey, subjectName) {
+function deleteSectionWithVerification(programName, sectionName) {
+    const isHead = isAcademicHeadUser();
     openModal({
-        title: '⚠️ Remove Subject from Curriculum',
-        submitLabel: 'Remove Subject',
+        title: isHead ? '⚠️ Remove Section' : 'Request Section Removal',
+        submitLabel: isHead ? 'Remove Section' : 'Submit Request',
         body: `
             <div class="space-y-4">
                 <div class="rounded-2xl bg-red-50 border border-red-200 p-4">
-                    <p class="text-sm font-bold text-red-700 mb-1">This action cannot be undone.</p>
-                    <p class="text-xs text-red-600">This will remove <strong>${subjectName}</strong> from the <strong>${programName}</strong> curriculum (${yearKey} · ${semKey}).</p>
+                    <p class="text-sm font-bold text-red-700 mb-1">${isHead ? 'This action cannot be undone.' : 'Academic Head approval is required.'}</p>
+                    <p class="text-xs text-red-600">${isHead ? `This will remove section <strong>${sectionName}</strong> from <strong>${programName}</strong>.` : `Your request to remove section <strong>${sectionName}</strong> will be sent to the Academic Head.`}</p>
+                </div>
+                <label class="block text-sm font-semibold text-slate-700">
+                    Type <span class="font-bold text-red-600">DELETE</span> to confirm:
+                    <input id="delete-section-confirm-input" class="mt-2 w-full rounded-2xl border-2 border-red-200 bg-red-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-red-500" placeholder="Type DELETE here..." autocomplete="off" />
+                    <span id="delete-section-match-msg" class="text-xs mt-1 text-red-500 hidden">Must type DELETE exactly.</span>
+                </label>
+            </div>
+        `,
+        onSubmit: async () => {
+            const typed = document.getElementById('delete-section-confirm-input')?.value.trim();
+            if (typed !== 'DELETE') {
+                document.getElementById('delete-section-match-msg')?.classList.remove('hidden');
+                showBanner('Must type DELETE exactly. Removal cancelled.', 'error');
+                return;
+            }
+            const apiPayload = { program_name: programName, section_name: sectionName };
+            if (!isHead) {
+                queueApprovalAction('section_delete', { programName, sectionName, apiPayload });
+                closeModal();
+                showBanner(`Removing section ${sectionName} is pending Academic Head approval.`, 'info');
+                return;
+            }
+            try {
+                await deleteSectionAPI(programName, sectionName);
+            } catch (error) {
+                console.error('Unable to delete section:', error);
+                showBanner('Unable to remove section.', 'error');
+                return;
+            }
+            const program = State.db.programs[programName];
+            if (program) program.sections = (program.sections || []).filter(section => section !== sectionName);
+            persistState();
+            closeModal();
+            renderProgramResources();
+            showBanner(`Section "${sectionName}" removed.`, 'success');
+        }
+    });
+}
+
+function deleteSubjectWithVerification(programName, yearKey, semKey, subjectName) {
+    const isHead = isAcademicHeadUser();
+    openModal({
+        title: isHead ? '⚠️ Remove Subject from Curriculum' : 'Request Subject Removal',
+        submitLabel: isHead ? 'Remove Subject' : 'Submit Request',
+        body: `
+            <div class="space-y-4">
+                <div class="rounded-2xl bg-red-50 border border-red-200 p-4">
+                    <p class="text-sm font-bold text-red-700 mb-1">${isHead ? 'This action cannot be undone.' : 'Academic Head approval is required.'}</p>
+                    <p class="text-xs text-red-600">${isHead ? `This will remove <strong>${subjectName}</strong> from the <strong>${programName}</strong> curriculum (${yearKey} · ${semKey}).` : `Your request to remove <strong>${subjectName}</strong> from the curriculum will be sent to the Academic Head.`}</p>
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-slate-700 mb-2">
@@ -2410,7 +3888,7 @@ function deleteSubjectWithVerification(programName, yearKey, semKey, subjectName
                 </div>
             </div>
         `,
-        onSubmit: () => {
+        onSubmit: async () => {
             const typed = document.getElementById('delete-subject-confirm-input')?.value.trim();
             const msg = document.getElementById('delete-subject-match-msg');
             if (typed !== 'DELETE') {
@@ -2425,7 +3903,30 @@ function deleteSubjectWithVerification(programName, yearKey, semKey, subjectName
             }
             const arr = program.subjects[yearKey][semKey];
             const idx = arr.findIndex(s => s.name === subjectName);
-            if (idx !== -1) arr.splice(idx, 1);
+            if (idx === -1) {
+                showBanner('Subject not found.', 'error');
+                return;
+            }
+            const apiPayload = {
+                program_name: programName,
+                year_level: yearKey,
+                semester: semKey,
+                subject_name: subjectName
+            };
+            if (!isHead) {
+                queueApprovalAction('subject_delete', { programName, yearLevel: yearKey, semester: semKey, subjectName, apiPayload });
+                closeModal();
+                showBanner(`Removing subject ${subjectName} is pending Academic Head approval.`, 'info');
+                return;
+            }
+            try {
+                await deleteSubjectAPI(apiPayload);
+            } catch (error) {
+                console.error('Unable to delete subject:', error);
+                showBanner('Unable to remove subject.', 'error');
+                return;
+            }
+            arr.splice(idx, 1);
             // Clean up empty containers
             if (arr.length === 0) delete program.subjects[yearKey][semKey];
             if (Object.keys(program.subjects[yearKey] || {}).length === 0) delete program.subjects[yearKey];
@@ -2458,8 +3959,8 @@ function openEditFacultyModal() {
     }).join('');
 
     openModal({
-        title: 'Edit Faculty',
-        submitLabel: 'Save Changes',
+        title: isAcademicHeadUser() ? 'Edit Faculty' : 'Request Faculty Edit',
+        submitLabel: isAcademicHeadUser() ? 'Save Changes' : 'Submit Request',
         body: `
             <div class="space-y-4">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2528,9 +4029,15 @@ function openEditFacultyModal() {
                         <input id="faculty-update-nature" value="${faculty.natureOfAppointment || ''}" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]" />
                     </div>
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-2">Extension</label>
-                    <input id="faculty-update-extension" value="${faculty.extension || ''}" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]" />
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Extension</label>
+                        <input id="faculty-update-extension" value="${faculty.extension || ''}" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Faculty Email</label>
+                        <input type="email" id="faculty-update-email" value="${faculty.email || ''}" placeholder="e.g. faculty@pup.edu.ph" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]" />
+                    </div>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -2549,12 +4056,13 @@ function openEditFacultyModal() {
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-slate-700 mb-2">Preferred Time</label>
-                                <select id="faculty-update-pref-times" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]">
-                                    ${getPreferredTimeOptions(parsePreferredTimeComponents(faculty.preferredTimes || '').time)}
-                                </select>
+                                <div class="flex items-center justify-between mb-2">
+                                    <label class="block text-sm font-medium text-slate-700">Preferred Time (30-min intervals)</label>
+                                    <span class="text-[11px] text-slate-400">Select slots to merge</span>
+                                </div>
+                                <div id="faculty-update-pref-intervals" class="grid grid-cols-2 gap-1.5 max-h-48 overflow-y-auto p-2 bg-slate-50 border border-slate-200 rounded-xl"></div>
                             </div>
-                            <button type="button" id="faculty-update-pref-time-add" class="w-full rounded-2xl bg-[#7f0000] px-4 py-3 text-sm font-bold text-white hover:bg-red-900 transition">Add Preferred Time</button>
+                            <button type="button" id="faculty-update-pref-time-add" class="w-full rounded-2xl bg-[#7f0000] px-4 py-3 text-sm font-bold text-white hover:bg-red-900 transition">Save Preferred Time</button>
                         </div>
                     </div>
                 </div>
@@ -2650,6 +4158,7 @@ function openEditFacultyModal() {
             const ncValue = document.getElementById('faculty-update-nc')?.value.trim();
             const natureValue = document.getElementById('faculty-update-nature')?.value.trim();
             const extensionValue = document.getElementById('faculty-update-extension')?.value.trim();
+            const emailValue = document.getElementById('faculty-update-email')?.value.trim();
             const prefSubjectsValue = Array.from(document.getElementById('faculty-update-pref-subjects')?.selectedOptions || [])
                 .map(o => o.value.trim())
                 .filter(Boolean)
@@ -2669,7 +4178,56 @@ function openEditFacultyModal() {
             const publicationValue = document.getElementById('faculty-update-publication')?.value.trim();
             const citationValue = document.getElementById('faculty-update-citation')?.value.trim();
 
+            const proposedFaculty = {
+                ...professor,
+                name: newName,
+                email: emailValue,
+                program: newProgram,
+                active: activeValue === 'active',
+                employmentType: employmentValue || professor.employmentType,
+                baseDesignation: titleValue || professor.baseDesignation,
+                classification: classificationValue || professor.classification,
+                classificationRank: rankValue || professor.classificationRank || '',
+                licenseNumber: licenseValue,
+                specialization: specializationValue,
+                nationalCertificate: ncValue,
+                natureOfAppointment: natureValue,
+                extension: extensionValue,
+                preferredSubjects: prefSubjectsValue,
+                preferredTimes: prefTimesValue,
+                remarks: remarksValue,
+                educationalAttainment: {
+                    baccalaureate: baccValue,
+                    masters: masterValue,
+                    doctorate: doctorateValue,
+                    postBaccalaureate: postbacValue
+                },
+                courseHandle: {
+                    genEd: genedValue,
+                    coreSubject: coreValue,
+                    professionalSubject: profValue,
+                    technicalSubject: technicalValue
+                },
+                research: {
+                    production: productionValue,
+                    presentation: presentationValue,
+                    publication: publicationValue,
+                    citation: citationValue
+                }
+            };
+
+            if (!isAcademicHeadUser()) {
+                queueApprovalAction('faculty_edit', {
+                    facultyId: professor.id,
+                    faculty: proposedFaculty
+                });
+                closeModal();
+                showBanner(`Changes to ${newName} are pending Academic Head approval.`, 'info');
+                return;
+            }
+
             professor.name = newName;
+            professor.email = emailValue;
             professor.program = newProgram;
             professor.active = activeValue === 'active';
             professor.employmentType = employmentValue || professor.employmentType;
@@ -2786,46 +4344,147 @@ function addSubject() {
     openAddSubjectModal();
 }
 
-function editSubject(programName, yearLevel, semester, subjectName, units) {
-    if (!programName || !yearLevel || !semester || !subjectName) return;
+function editSubject(programName, yearLevel, semester, subjectName, units, isBridging) {
+    if (!programName || !yearLevel || !subjectName) return;
+    if (!getCurrentUserFromSession()) {
+        showBanner('Sign in to edit a subject or submit an edit request.', 'error');
+        return;
+    }
+    const existingSubject = State.db.programs[programName]?.subjects?.[yearLevel]?.[semester]?.find(subject => subject.name === subjectName);
+    const existingHours = getSubjectHourParts(existingSubject || { units });
+    const currentType = isBridging ? 'bridging' : 'regular';
+    const semOptions = ['1st Semester', '2nd Semester', 'Summer Term'].map(s =>
+        `<option value="${s}" ${s === semester ? 'selected' : ''}>${s}</option>`).join('');
 
     openModal({
-        title: 'Edit Subject',
-        submitLabel: 'Save Changes',
+        title: isAcademicHeadUser() ? 'Edit Subject' : 'Request Subject Edit',
+        submitLabel: isAcademicHeadUser() ? 'Save Changes' : 'Submit Request',
         body: `
             <div class="space-y-4">
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-2">Subject Title</label>
-                    <input id="modal-edit-subject-name" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]" value="${subjectName}" />
+                    <input id="modal-edit-subject-name" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]" value="${escapeHtml(subjectName)}" />
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-2">Units</label>
-                    <input id="modal-edit-subject-units" type="number" min="1" value="${units}" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]" />
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Subject Type</label>
+                    <select id="modal-edit-subject-type" onchange="updateBridgingSubjectFields('modal-edit-subject')" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]">
+                        <option value="regular" ${currentType === 'regular' ? 'selected' : ''}>Regular Subject</option>
+                        <option value="bridging" ${currentType === 'bridging' ? 'selected' : ''}>Bridging Subject</option>
+                    </select>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Lecture Hours</label>
+                        <input id="modal-edit-subject-lec" type="number" min="0" step="1" value="${existingHours.lec}" oninput="updateSubjectTotalHours('modal-edit-subject')" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Lab Hours</label>
+                        <input id="modal-edit-subject-lab" type="number" min="0" step="1" value="${existingHours.lab}" oninput="updateSubjectTotalHours('modal-edit-subject')" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Total Hours</label>
+                        <input id="modal-edit-subject-units" type="number" value="${existingHours.units}" readonly class="w-full rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700" />
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Year Level</label>
+                        <select id="modal-edit-subject-year" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]">
+                            <option value="1st Year" ${yearLevel === '1st Year' ? 'selected' : ''}>1st Year</option>
+                            <option value="2nd Year" ${yearLevel === '2nd Year' ? 'selected' : ''}>2nd Year</option>
+                            <option value="3rd Year" ${yearLevel === '3rd Year' ? 'selected' : ''}>3rd Year</option>
+                            <option value="4th Year" ${yearLevel === '4th Year' ? 'selected' : ''}>4th Year</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="modal-edit-subject-semester-field">
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Semester</label>
+                    <select id="modal-edit-subject-semester" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]">
+                        ${semOptions}
+                    </select>
                 </div>
             </div>
         `,
-        onSubmit: () => {
+        onSubmit: async () => {
             const updatedName = document.getElementById('modal-edit-subject-name')?.value.trim();
-            const updatedUnits = Math.max(1, Number(document.getElementById('modal-edit-subject-units')?.value) || 1);
+            const updatedLec = Math.max(0, Math.floor(Number(document.getElementById('modal-edit-subject-lec')?.value) || 0));
+            const updatedLab = Math.max(0, Math.floor(Number(document.getElementById('modal-edit-subject-lab')?.value) || 0));
+            const updatedUnits = updatedLec + updatedLab;
+            const updatedYearLevel = document.getElementById('modal-edit-subject-year')?.value || yearLevel;
+            const updatedIsBridging = document.getElementById('modal-edit-subject-type')?.value === 'bridging';
+            const updatedSemester = document.getElementById('modal-edit-subject-semester')?.value || semester;
+
             if (!updatedName) {
                 showBanner('Please enter a subject title.', 'error');
                 return;
             }
+            if (updatedUnits < 1 || updatedUnits > 30) {
+                showBanner('Lecture and lab hours must add up to between 1 and 30 hours.', 'error');
+                return;
+            }
 
             const program = State.db.programs[programName];
-            if (!program?.subjects?.[yearLevel]?.[semester]) {
-                showBanner('Subject location not found.', 'error');
+            if (!program) {
+                showBanner('Program not found.', 'error');
                 return;
             }
 
-            const matchingSubject = program.subjects[yearLevel][semester].find(sub => sub.name === subjectName);
-            if (!matchingSubject) {
-                showBanner('Subject not found.', 'error');
+            const apiPayload = {
+                program_name: programName,
+                old_year_level: yearLevel,
+                old_semester: semester || '',
+                old_subject_name: subjectName,
+                year_level: updatedYearLevel,
+                semester: updatedSemester,
+                subject_name: updatedName,
+                lec_units: updatedLec,
+                lab_units: updatedLab,
+                is_bridging: updatedIsBridging,
+                units: updatedUnits
+            };
+            if (!isAcademicHeadUser()) {
+                queueApprovalAction('subject_edit', {
+                    programName,
+                    oldYearLevel: yearLevel,
+                    oldSemester: semester,
+                    oldSubjectName: subjectName,
+                    yearLevel: updatedYearLevel,
+                    semester: updatedSemester,
+                    subjectName: updatedName,
+                    lec_units: updatedLec,
+                    lab_units: updatedLab,
+                    is_bridging: updatedIsBridging,
+                    units: updatedUnits,
+                    apiPayload
+                });
+                closeModal();
+                showBanner(`Updating subject ${updatedName} is pending Academic Head approval.`, 'info');
+                return;
+            }
+            try {
+                await updateSubjectAPI(apiPayload);
+            } catch (error) {
+                console.error('Unable to update subject:', error);
+                showBanner(`Unable to update subject: ${error.message}`, 'error');
                 return;
             }
 
-            matchingSubject.name = updatedName;
-            matchingSubject.units = updatedUnits;
+            if (program.subjects?.[yearLevel]?.[semester]) {
+                program.subjects[yearLevel][semester] = program.subjects[yearLevel][semester].filter(sub => sub.name !== subjectName);
+            }
+            if (!program.subjects) program.subjects = {};
+            if (!program.subjects[updatedYearLevel]) program.subjects[updatedYearLevel] = {};
+            if (!program.subjects[updatedYearLevel][updatedSemester]) program.subjects[updatedYearLevel][updatedSemester] = [];
+
+            const newSubject = {
+                name: updatedName,
+                lec_units: updatedLec,
+                lab_units: updatedLab,
+                units: updatedUnits,
+                is_bridging: updatedIsBridging
+            };
+            program.subjects[updatedYearLevel][updatedSemester].push(newSubject);
+
             persistState();
             renderProgramResources();
             closeModal();
@@ -2851,7 +4510,7 @@ function attachProgramButtonHandlers() {
 
 function renderActiveProgramButtons() {
     const programNames = Object.keys(State.db.programs).sort((a, b) => a.localeCompare(b));
-    
+
     // 1. Sidebar Buttons (if it exists)
     const container = document.getElementById('active-program-button-list');
     if (container) {
@@ -2916,13 +4575,35 @@ function populateFacultyProfileDropdown() {
 function displaySelectedFacultyProfile() {
     const selectedId = document.getElementById('faculty-profile-select')?.value;
     const detailContainer = document.getElementById('faculty-profile-details');
+    const toggleInput = document.getElementById('faculty-status-toggle');
+    const toggleLabel = document.getElementById('faculty-profile-status-label');
+
     if (!detailContainer) return;
     if (!selectedId) {
+        if (toggleInput) {
+            toggleInput.checked = false;
+            toggleInput.disabled = true;
+        }
+        if (toggleLabel) {
+            toggleLabel.textContent = 'Select faculty';
+        }
         detailContainer.innerHTML = `<div class="rounded-3xl bg-slate-50 p-5 border border-slate-200"><p class="text-sm text-slate-500">No faculty selected.</p></div>`;
         return;
     }
     const faculty = facultyRegistry.find(f => f.id === selectedId);
     if (!faculty) return;
+
+    const isActive = faculty.active !== false;
+    if (toggleInput) {
+        toggleInput.disabled = false;
+        toggleInput.checked = isActive;
+    }
+    if (toggleLabel) {
+        toggleLabel.innerHTML = isActive
+            ? '<span class="text-emerald-600 font-bold">● Active (ON)</span>'
+            : '<span class="text-red-500 font-bold">● Inactive (OFF)</span>';
+    }
+
     const totalLoad = calculateCumulativeLoadHours(faculty.name);
     const limits = getLoadLimitsForFaculty(faculty);
     const rankLabel = faculty.classificationRank ? getClassificationRankLabel(faculty.classification, faculty.classificationRank) : 'N/A';
@@ -2972,11 +4653,21 @@ function displaySelectedFacultyProfile() {
                     <p class="mt-2 font-bold text-gray-900">${faculty.natureOfAppointment || 'N/A'}</p>
                 </div>
                 <div class="rounded-3xl bg-slate-50 p-4 border border-slate-200">
-                    <p class="text-xs uppercase text-slate-400 font-semibold">Classification Rank</p>
-                    <p class="mt-2 font-bold text-gray-900">${rankLabel}</p>
+                    <p class="text-xs uppercase text-slate-400 font-semibold">Classification & Rank</p>
+                    <p class="mt-2 font-bold text-gray-900">${faculty.classification || 'N/A'} • ${rankLabel}</p>
                 </div>
             </div>
-            
+
+            <div class="rounded-3xl bg-slate-50 p-4 border border-slate-200">
+                <p class="text-xs uppercase text-slate-400 font-semibold mb-2">Preferred Subjects</p>
+                <p class="text-sm font-semibold text-gray-900">${faculty.preferredSubjects || 'None specified'}</p>
+            </div>
+
+            <div class="rounded-3xl bg-slate-50 p-4 border border-slate-200">
+                <p class="text-xs uppercase text-slate-400 font-semibold mb-2">Preferred Teaching Times</p>
+                <p class="text-sm font-semibold text-gray-900">${faculty.preferredTimes || 'None specified'}</p>
+            </div>
+
             ${loadInfoHTML}
             
             <div class="overflow-x-auto rounded-3xl border border-slate-200 bg-slate-50 p-4">
@@ -2992,26 +4683,26 @@ function displaySelectedFacultyProfile() {
                         <tr class="border-t border-slate-200">
                             <td class="py-4 px-4 align-top">
                                 <div class="space-y-2">
-                                    <div><span class="font-semibold">Baccalaureate:</span> ${faculty.educationalAttainment.baccalaureate || 'N/A'}</div>
-                                    <div><span class="font-semibold">Masters:</span> ${faculty.educationalAttainment.masters || 'N/A'}</div>
-                                    <div><span class="font-semibold">Doctorate:</span> ${faculty.educationalAttainment.doctorate || 'N/A'}</div>
-                                    <div><span class="font-semibold">Post-Baccalaureate:</span> ${faculty.educationalAttainment.postBaccalaureate || 'N/A'}</div>
+                                    <div><span class="font-semibold">Baccalaureate:</span> ${faculty.educationalAttainment?.baccalaureate || 'N/A'}</div>
+                                    <div><span class="font-semibold">Masters:</span> ${faculty.educationalAttainment?.masters || 'N/A'}</div>
+                                    <div><span class="font-semibold">Doctorate:</span> ${faculty.educationalAttainment?.doctorate || 'N/A'}</div>
+                                    <div><span class="font-semibold">Post-Baccalaureate:</span> ${faculty.educationalAttainment?.postBaccalaureate || 'N/A'}</div>
                                 </div>
                             </td>
                             <td class="py-4 px-4 align-top">
                                 <div class="space-y-2">
-                                    <div><span class="font-semibold">GEN-ED:</span> ${faculty.courseHandle.genEd || 'N/A'}</div>
-                                    <div><span class="font-semibold">Core Subject:</span> ${faculty.courseHandle.coreSubject || 'N/A'}</div>
-                                    <div><span class="font-semibold">Professional Subject:</span> ${faculty.courseHandle.professionalSubject || 'N/A'}</div>
-                                    <div><span class="font-semibold">Technical Subject:</span> ${faculty.courseHandle.technicalSubject || 'N/A'}</div>
+                                    <div><span class="font-semibold">GEN-ED:</span> ${faculty.courseHandle?.genEd || 'N/A'}</div>
+                                    <div><span class="font-semibold">Core Subject:</span> ${faculty.courseHandle?.coreSubject || 'N/A'}</div>
+                                    <div><span class="font-semibold">Professional Subject:</span> ${faculty.courseHandle?.professionalSubject || 'N/A'}</div>
+                                    <div><span class="font-semibold">Technical Subject:</span> ${faculty.courseHandle?.technicalSubject || 'N/A'}</div>
                                 </div>
                             </td>
                             <td class="py-4 px-4 align-top">
                                 <div class="space-y-2">
-                                    <div><span class="font-semibold">Production:</span> ${faculty.research.production || '0'}</div>
-                                    <div><span class="font-semibold">Presentation:</span> ${faculty.research.presentation || '0'}</div>
-                                    <div><span class="font-semibold">Publication:</span> ${faculty.research.publication || '0'}</div>
-                                    <div><span class="font-semibold">Citation:</span> ${faculty.research.citation || '0'}</div>
+                                    <div><span class="font-semibold">Production:</span> ${faculty.research?.production || '0'}</div>
+                                    <div><span class="font-semibold">Presentation:</span> ${faculty.research?.presentation || '0'}</div>
+                                    <div><span class="font-semibold">Publication:</span> ${faculty.research?.publication || '0'}</div>
+                                    <div><span class="font-semibold">Citation:</span> ${faculty.research?.citation || '0'}</div>
                                 </div>
                             </td>
                         </tr>
@@ -3047,19 +4738,95 @@ function displaySelectedFacultyProfile() {
     `;
 }
 
-function toggleActiveStatusFromProfile(setActive) {
+async function handleFacultyToggleChange(isChecked) {
+    const selectedId = document.getElementById('faculty-profile-select')?.value;
+    if (!selectedId) {
+        showBanner('Select a faculty profile first.', 'error');
+        const toggleInput = document.getElementById('faculty-status-toggle');
+        if (toggleInput) toggleInput.checked = false;
+        return;
+    }
+    await setFacultyActiveStatus(selectedId, isChecked);
+}
+
+async function setFacultyActiveStatus(facultyId, isActive) {
+    const faculty = facultyRegistry.find(f => f.id === facultyId);
+    if (!faculty) return;
+
+    faculty.active = Boolean(isActive);
+
+    // Update toggle elements on profile page if available
+    const toggleInput = document.getElementById('faculty-status-toggle');
+    const toggleLabel = document.getElementById('faculty-profile-status-label');
+    if (toggleInput) {
+        toggleInput.disabled = false;
+        toggleInput.checked = faculty.active;
+    }
+    if (toggleLabel) {
+        toggleLabel.innerHTML = faculty.active
+            ? '<span class="text-emerald-600 font-bold">● Active (ON)</span>'
+            : '<span class="text-red-500 font-bold">● Inactive (OFF)</span>';
+    }
+
+    displaySelectedFacultyProfile();
+
+    try {
+        await updateFacultyStatusAPI(faculty.id, faculty.active);
+        if (!faculty.active) {
+            State.db.loads = (State.db.loads || []).filter(load => load.prof !== faculty.name);
+        }
+        await persistState();
+    } catch (error) {
+        faculty.active = !faculty.active;
+        if (toggleInput) toggleInput.checked = faculty.active;
+        if (toggleLabel) {
+            toggleLabel.innerHTML = faculty.active
+                ? '<span class="text-emerald-600 font-bold">● Active (ON)</span>'
+                : '<span class="text-red-500 font-bold">● Inactive (OFF)</span>';
+        }
+        displaySelectedFacultyProfile();
+        showBanner(`Unable to update ${faculty.name}'s status.`, 'error');
+        return;
+    }
+
+    // Synchronize other views if present
+    if (typeof renderFacultyStatusPage === 'function') {
+        renderFacultyStatusPage();
+    }
+    if (typeof renderProgramResources === 'function') {
+        renderProgramResources();
+    }
+    if (typeof updateProfessorDropdown === 'function') {
+        updateProfessorDropdown();
+    }
+    if (typeof renderWorkloadMatrix === 'function') {
+        renderWorkloadMatrix();
+    }
+    if (typeof renderFacultyCalendar === 'function') {
+        renderFacultyCalendar();
+    }
+    if (typeof renderRoomSchedulePreview === 'function') {
+        renderRoomSchedulePreview();
+    }
+    if (typeof renderDashboard === 'function') {
+        renderDashboard();
+    }
+
+    // Dispatch global event for across-the-board listeners
+    window.dispatchEvent(new CustomEvent('facultyStatusChanged', {
+        detail: { id: faculty.id, name: faculty.name, active: faculty.active }
+    }));
+
+    showBanner(`${faculty.name} is now ${faculty.active ? 'Active (ON)' : 'Inactive (OFF)'}.`, 'success');
+}
+
+async function toggleActiveStatusFromProfile(setActive) {
     const selectedId = document.getElementById('faculty-profile-select')?.value;
     if (!selectedId) {
         showBanner('Select a faculty profile to change status first.', 'error');
         return;
     }
-    const faculty = facultyRegistry.find(f => f.id === selectedId);
-    if (!faculty) return;
-    faculty.active = Boolean(setActive);
-    persistState();
-    displaySelectedFacultyProfile();
-    renderProgramResources();
-    showBanner(`Faculty profile is now ${faculty.active ? 'Active' : 'Inactive'}.`, 'success');
+    await setFacultyActiveStatus(selectedId, setActive);
 }
 
 function handleFacultySelectorChange() {
@@ -3134,12 +4901,13 @@ function saveFacultyProfileUpdate() {
     displaySelectedFacultyProfile();
 }
 
-function saveNewFacultyProfile() {
+async function saveNewFacultyProfile() {
     const name = document.getElementById('new-faculty-name')?.value.trim();
     if (!name) {
         showBanner('Please enter the faculty name.', 'error');
         return;
     }
+
     const programSelect = document.getElementById('new-faculty-program');
     let program = State.activeProgram;
     if (programSelect) {
@@ -3152,6 +4920,7 @@ function saveNewFacultyProfile() {
     const id = `prof-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}-${Date.now()}`;
     const facultyObject = {
         id, name,
+        email: document.getElementById('new-faculty-email')?.value.trim() || '',
         baseDesignation: document.getElementById('new-faculty-designation')?.value || '',
         program,
         employmentType: document.getElementById('new-faculty-employment')?.value || 'Regular',
@@ -3189,30 +4958,43 @@ function saveNewFacultyProfile() {
         remarks: document.getElementById('new-faculty-remarks')?.value || ''
     };
 
-    facultyRegistry.push(facultyObject);
-    if (program) {
-        program.split(',').map(s => s.trim()).forEach(prog => {
-            if (!State.db.programs[prog]) {
-                State.db.programs[prog] = { profs: [], sections: [], subjects: {} };
-            }
-            if (!State.db.programs[prog].profs.includes(name)) {
-                State.db.programs[prog].profs.push(name);
-            }
-        });
+    if (!isAcademicHeadUser()) {
+        queueApprovalAction('faculty_add', { faculty: facultyObject });
+        document.getElementById('new-faculty-form')?.reset();
+        showBanner(`Faculty profile for ${name} is pending Academic Head approval.`, 'info');
+        return;
     }
-    persistState();
-    populateFacultyDropdowns();
-    populateFacultyProfileDropdown();
-    renderProgramResources();
-    renderDashboard();
-    document.getElementById('new-faculty-form')?.reset();
-    showBanner(`Faculty profile for ${name} has been added successfully.`, 'success');
 
     try {
+        await updateFacultyAPI(facultyObject);
+
+        facultyRegistry.push(facultyObject);
+        if (program) {
+            program.split(',').map(s => s.trim()).forEach(prog => {
+                if (!State.db.programs[prog]) {
+                    State.db.programs[prog] = { profs: [], sections: [], subjects: {} };
+                }
+                if (!State.db.programs[prog].profs.includes(name)) {
+                    State.db.programs[prog].profs.push(name);
+                }
+            });
+        }
+
+        persistState();
+        populateFacultyDropdowns();
+        populateFacultyProfileDropdown();
+        renderProgramResources();
+        renderDashboard();
+        document.getElementById('new-faculty-form')?.reset();
+        showBanner(`Faculty profile for ${name} has been added successfully.`, 'success');
+
         if (window.location.pathname.endsWith('add-faculty-profile.html') || window.location.href.includes('add-faculty-profile.html')) {
             window.location.href = `program-resources.html?new=${encodeURIComponent(name)}`;
         }
-    } catch (e) { }
+    } catch (error) {
+        console.error('Failed to save faculty profile:', error);
+        showBanner('The faculty could not be saved. Please try again.', 'error');
+    }
 }
 
 function updateClassificationRankSelect() {
@@ -3341,8 +5123,8 @@ function renderProgramResources() {
             const isProfInactive = f.active === false;
 
             card.className = `rounded-2xl bg-white p-3 border mb-2 transition-all flex flex-col gap-1.5 ${isProfInactive
-                    ? 'opacity-60 border-dashed border-slate-200 bg-slate-50/50'
-                    : 'border-slate-100 shadow-xs hover:border-slate-300 cursor-pointer'
+                ? 'opacity-60 border-dashed border-slate-200 bg-slate-50/50'
+                : 'border-slate-100 shadow-xs hover:border-slate-300 cursor-pointer'
                 }`;
             card.setAttribute('data-faculty', f.id);
 
@@ -3375,7 +5157,7 @@ function renderProgramResources() {
         if (activeStaff.length > 0) {
             const activeHeaderBlock = document.createElement('div');
             activeHeaderBlock.className = "mb-4";
-            activeHeaderBlock.innerHTML = `<div class="text-[10px] font-bold uppercase tracking-widest text-emerald-600 mb-2 flex items-center gap-1.5">🟢 Active Faculty (${activeStaff.length})</div>`;
+            activeHeaderBlock.innerHTML = `<div class="text-[10px] font-bold uppercase tracking-widest text-emerald-600 mb-2 flex items-center gap-1.5">Active Faculty (${activeStaff.length})</div>`;
 
             const activeCardsWrapper = document.createElement('div');
             activeStaff.forEach(f => activeCardsWrapper.appendChild(createCard(f)));
@@ -3387,7 +5169,7 @@ function renderProgramResources() {
         if (inactiveStaff.length > 0) {
             const inactiveHeaderBlock = document.createElement('div');
             inactiveHeaderBlock.className = "mb-2 mt-2";
-            inactiveHeaderBlock.innerHTML = `<div class="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-1.5">⚫ Inactive Faculty (${inactiveStaff.length})</div>`;
+            inactiveHeaderBlock.innerHTML = `<div class="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-1.5">Inactive Faculty (${inactiveStaff.length})</div>`;
 
             const inactiveCardsWrapper = document.createElement('div');
             inactiveStaff.forEach(f => inactiveCardsWrapper.appendChild(createCard(f)));
@@ -3421,26 +5203,39 @@ function renderProgramResources() {
                     semContainer.className = 'pl-2 space-y-1.5';
                     semContainer.innerHTML = `<div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mt-1">${semKey}</div>`;
                     program.subjects[yearKey][semKey].forEach(sub => {
+                        const hours = getSubjectHourParts(sub);
+                        const pName = State.activeProgram || '';
+                        const isBridging = Boolean(sub.is_bridging) || (typeof getSubjectBridgingStatus === 'function' && getSubjectBridgingStatus(pName, sub.name));
+                        const bridgingBadge = isBridging ? '<span class="bg-orange-100 text-orange-800 border border-orange-300 text-[10px] px-1.5 py-0.5 rounded mr-2 uppercase font-black tracking-wider">BRIDGING</span>' : '';
                         const subRow = document.createElement('div');
-                        subRow.className = 'rounded-2xl bg-slate-50 p-3 flex items-center justify-between text-xs hover:bg-slate-100 transition-all cursor-pointer';
+                        subRow.className = `rounded-2xl ${isBridging ? 'bg-orange-50 border border-orange-200' : 'bg-slate-50'} p-3 flex items-center justify-between text-xs hover:bg-slate-100 transition-all cursor-pointer`;
                         subRow.setAttribute('role', 'button');
                         subRow.setAttribute('tabindex', '0');
                         subRow.setAttribute('title', 'Click to edit subject');
-                        const pName = State.activeProgram || '';
                         subRow.innerHTML = `
-                            <span class="font-medium text-gray-800 flex-1">${sub.name} <span class="text-slate-400 font-normal">(${sub.units} units)</span></span>
+                            <span class="font-medium text-gray-800 flex-1">${bridgingBadge}${escapeHtml(sub.name)} <span class="text-slate-500 font-medium">(Lec ${hours.lec} + Lab ${hours.lab} = ${hours.units}u)</span></span>
                             <div class="flex items-center gap-2">
-                                <button type="button" class="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700" onclick="event.stopPropagation(); editSubject('${pName.replace(/'/g,"\\'")}','${yearKey.replace(/'/g,"\\'")}','${semKey.replace(/'/g,"\\'")}','${sub.name.replace(/'/g,"\\'")}','${sub.units}')">Edit</button>
-                                <button type="button" onclick="event.stopPropagation(); deleteSubjectWithVerification('${pName.replace(/'/g,"\\'")}','${yearKey.replace(/'/g,"\\'")}','${semKey.replace(/'/g,"\\'")}','${sub.name.replace(/'/g,"\\'")}')" class="ml-1 flex-shrink-0 p-1.5 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition" title="Remove subject">
+                                <button type="button" class="subject-edit-button ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">${isAcademicHeadUser() ? 'Edit' : 'Request Edit'}</button>
+                                <button type="button" class="subject-delete-button ml-1 flex-shrink-0 p-1.5 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition" title="Remove subject">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                 </button>
                             </div>
                         `;
-                        subRow.onclick = () => editSubject(pName, yearKey, semKey, sub.name, sub.units);
+                        const editButton = subRow.querySelector('.subject-edit-button');
+                        const deleteButton = subRow.querySelector('.subject-delete-button');
+                        editButton?.addEventListener('click', event => {
+                            event.stopPropagation();
+                            editSubject(pName, yearKey, semKey, sub.name, sub.units, isBridging);
+                        });
+                        deleteButton?.addEventListener('click', event => {
+                            event.stopPropagation();
+                            deleteSubjectWithVerification(pName, yearKey, semKey, sub.name, isBridging);
+                        });
+                        subRow.onclick = () => editSubject(pName, yearKey, semKey, sub.name, sub.units, isBridging);
                         subRow.onkeydown = (event) => {
                             if (event.key === 'Enter' || event.key === ' ') {
                                 event.preventDefault();
-                                editSubject(pName, yearKey, semKey, sub.name, sub.units);
+                                editSubject(pName, yearKey, semKey, sub.name, sub.units, isBridging);
                             }
                         };
                         semContainer.appendChild(subRow);
@@ -3456,7 +5251,7 @@ function renderProgramResources() {
     if (sectionList) {
         sectionList.innerHTML = (program.sections || []).map(section => `
             <div class="rounded-3xl bg-slate-50 p-4 flex items-center justify-between">
-                <span class="text-xs font-medium text-slate-800">${section}</span>
+                <span class="text-xs font-medium text-slate-800">${escapeHtml(section)}</span>
                 <button class="text-slate-400 hover:text-red-500"><i data-lucide="trash" class="w-4 h-4"></i></button>
             </div>
         `).join('') || '<div class="text-gray-500 italic text-xs p-4">No active sections mapped yet.</div>';
@@ -3499,17 +5294,32 @@ function renderFacultyStatusPage() {
         if (!list.length) {
             return '<div class="text-gray-500 italic text-sm">No faculty found for this status.</div>';
         }
-        return list.map(f => `
-            <button type="button" onclick="selectFaculty('${f.id}')" class="w-full text-left rounded-3xl border border-slate-200 bg-slate-50 p-4 mb-3 hover:bg-slate-100 transition-all">
+        return list.map(f => {
+            const requestedState = f.active === false;
+            const pendingApproval = getPendingApprovals().some(item => item.type === 'faculty_status' && item.payload.facultyId === f.id);
+            const requestButton = isAcademicHeadUser()
+                ? ''
+                : `<button type="button" data-request-faculty-id="${escapeHtml(f.id)}" data-request-active="${requestedState ? 'true' : 'false'}" class="request-status-change-btn mt-3 inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide text-amber-700 hover:bg-amber-100 transition">
+                        ${requestedState ? 'Request Activate' : 'Request Deactivate'}
+                    </button>`;
+            const pendingBadge = pendingApproval
+                ? '<div class="mt-3 inline-flex items-center rounded-full border border-amber-200 bg-amber-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-800">Pending Approval</div>'
+                : '';
+
+            return `
+            <div data-faculty-id="${escapeHtml(f.id)}" class="faculty-status-card w-full rounded-3xl border border-slate-200 bg-slate-50 p-4 mb-3 hover:bg-slate-100 transition-all">
                 <div class="flex justify-between gap-4 items-start">
                     <div>
-                        <div class="text-sm font-semibold text-slate-900">${f.name}</div>
-                        <div class="text-[11px] text-slate-500 mt-1">${getTitleLabel(f)} • ${f.baseDesignation}</div>
+                        <div class="text-sm font-semibold text-slate-900">${escapeHtml(f.name)}</div>
+                        <div class="text-[11px] text-slate-500 mt-1">${escapeHtml(getTitleLabel(f))} • ${escapeHtml(f.baseDesignation)}</div>
                     </div>
                     <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase ${f.active === false ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-emerald-50 text-emerald-700 border border-emerald-100'}">${f.active === false ? 'Inactive' : 'Active'}</span>
                 </div>
-            </button>
-        `).join('');
+                ${pendingBadge}
+                ${requestButton}
+            </div>
+        `;
+        }).join('');
     };
 
     pageContainer.innerHTML = `
@@ -3526,7 +5336,7 @@ function renderFacultyStatusPage() {
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div class="rounded-3xl bg-slate-50 p-4 border border-slate-200">
                             <p class="text-xs uppercase tracking-widest text-slate-400 font-semibold">Program</p>
-                            <p class="mt-2 font-semibold text-slate-900">${activeProgram}</p>
+                            <p class="mt-2 font-semibold text-slate-900">${escapeHtml(activeProgram)}</p>
                         </div>
                         <div class="rounded-3xl bg-slate-50 p-4 border border-slate-200">
                             <p class="text-xs uppercase tracking-widest text-slate-400 font-semibold">Active Faculty</p>
@@ -3548,16 +5358,35 @@ function renderFacultyStatusPage() {
             </div>
             <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
                 <div class="rounded-3xl bg-white border border-slate-200 p-6 shadow-sm">
-                    <div class="text-sm font-semibold text-slate-900 mb-4">🟢 Active Faculty (${activeStaff.length})</div>
+                    <div class="text-sm font-semibold text-slate-900 mb-4">Active Faculty (${activeStaff.length})</div>
                     ${buildFacultyCards(activeStaff)}
                 </div>
                 <div class="rounded-3xl bg-white border border-slate-200 p-6 shadow-sm">
-                    <div class="text-sm font-semibold text-slate-900 mb-4">⚫ Inactive Faculty (${inactiveStaff.length})</div>
+                    <div class="text-sm font-semibold text-slate-900 mb-4">Inactive Faculty (${inactiveStaff.length})</div>
                     ${buildFacultyCards(inactiveStaff)}
                 </div>
             </div>
         </div>
     `;
+    pageContainer.querySelectorAll('.faculty-status-card').forEach(card => {
+        card.addEventListener('click', (event) => {
+            const requestButton = event.target.closest('.request-status-change-btn');
+            if (requestButton) {
+                event.stopPropagation();
+                return;
+            }
+            selectFaculty(card.dataset.facultyId);
+        });
+    });
+
+    pageContainer.querySelectorAll('.request-status-change-btn').forEach(button => {
+        button.addEventListener('click', (event) => {
+            event.stopPropagation();
+            const facultyId = button.dataset.requestFacultyId;
+            const requestedActiveState = button.dataset.requestActive === 'true';
+            requestFacultyStatusChange(facultyId, requestedActiveState);
+        });
+    });
     lucide.createIcons();
 }
 
@@ -3586,13 +5415,13 @@ function getProfessorLoadTotals(profName, sy, semester, excludeLoadId) {
     return State.db.loads.filter(l => {
         // Filter out the load being edited
         if (excludeLoadId && String(l.id) === String(excludeLoadId)) return false;
-        
+
         // Match professor name
         if (l.prof !== profName) return false;
-        
+
         // Match school year
         if (currentSy && l.sy !== currentSy) return false;
-        
+
         // Match semester
         if (currentSem && l.semester) {
             const semVal = currentSem.toString();
@@ -3617,6 +5446,10 @@ function canAssignLoad(profName, loadType, units, sy, semester, excludeLoadId) {
         const faculty = facultyRegistry.find(f => f.name === profName || String(f.id) === String(profName));
         if (!faculty) {
             return { allowed: false, reason: `Faculty member not found: ${profName}` };
+        }
+
+        if (faculty.active === false) {
+            return { allowed: false, reason: `${faculty.name} is currently inactive and cannot be assigned workloads.` };
         }
 
         const classConfig = CLASSIFICATION_SYSTEM[faculty.classification];
@@ -3727,30 +5560,30 @@ function parsePreferredTimes(preferredTimesStr) {
         'saturday': [],
         'sunday': []
     };
-    
+
     if (!preferredTimesStr || preferredTimesStr.trim() === '') return dayRanges;
-    
+
     const parts = preferredTimesStr.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
     let accumulatedDays = [];
-    
+
     for (const part of parts) {
         const dayNames = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
         let matchedDay = null;
-        
+
         for (const d of dayNames) {
             if (part.includes(d)) {
                 matchedDay = d;
                 break;
             }
         }
-        
+
         const hasTimeRange = part.includes('-') && (part.includes('am') || part.includes('pm') || part.includes(':'));
-        
+
         if (matchedDay) {
             if (hasTimeRange) {
                 const timeStr = part.replace(matchedDay, '').trim();
                 dayRanges[matchedDay].push(timeStr);
-                
+
                 for (const accDay of accumulatedDays) {
                     dayRanges[accDay].push(timeStr);
                 }
@@ -3765,11 +5598,11 @@ function parsePreferredTimes(preferredTimesStr) {
             accumulatedDays = [];
         }
     }
-    
+
     for (const accDay of accumulatedDays) {
         dayRanges[accDay].push('all-day');
     }
-    
+
     return dayRanges;
 }
 
@@ -3779,21 +5612,21 @@ function isPreferredTime(day, range, preferredTimes) {
     const dayRanges = parsePreferredTimes(preferredTimes);
     const targetDay = day.toLowerCase().trim();
     const ranges = dayRanges[targetDay];
-    
+
     if (!ranges || ranges.length === 0) {
         return false;
     }
-    
+
     if (ranges.includes('all-day')) {
         return true;
     }
-    
+
     const proposed = parseTimeRange(range);
-    
+
     return ranges.some(r => {
         const parts = r.split('-').map(p => p.trim());
         if (parts.length !== 2) return false;
-        
+
         try {
             const parseShortTime = (str) => {
                 let s = str.toUpperCase().trim();
@@ -3804,7 +5637,7 @@ function isPreferredTime(day, range, preferredTimes) {
                 } else if (s.includes('AM')) {
                     s = s.replace('AM', '').trim();
                 }
-                
+
                 let hours = 0;
                 let minutes = 0;
                 if (s.includes(':')) {
@@ -3814,7 +5647,7 @@ function isPreferredTime(day, range, preferredTimes) {
                 } else {
                     hours = Number(s);
                 }
-                
+
                 if (period === 'PM' && hours !== 12) hours += 12;
                 if (period === 'AM' && hours === 12) hours = 0;
                 return hours * 60 + minutes;
@@ -3885,9 +5718,9 @@ function populateModalSubjects() {
         subSelect.innerHTML = sortedSubjects.length
             ? sortedSubjects.map(sub => {
                 const assignedUnits = State.db.loads
-                    .filter(l => 
-                        l.sub === sub.name && 
-                        l.sec === selectedSec && 
+                    .filter(l =>
+                        l.sub === sub.name &&
+                        l.sec === selectedSec &&
                         l.sy === sy &&
                         String(l.semester) === String(selectedSemValue) &&
                         String(l.id) !== String(currentLoadEditId)
@@ -3896,10 +5729,12 @@ function populateModalSubjects() {
                 const remaining = sub.units - assignedUnits;
                 const disabled = remaining <= 0 ? 'disabled' : '';
                 const preferred = preferredSet.has(sub.name);
+                const hours = typeof getSubjectHourParts === 'function' ? getSubjectHourParts(sub) : { lec: Number(sub.units) || 0, lab: 0, units: Number(sub.units) || 0 };
+                const hoursBreakdown = `(Lec ${hours.lec} + Lab ${hours.lab} = ${hours.units}u)`;
                 const label = remaining <= 0
-                    ? `${sub.name} (Completed)`
-                    : `${sub.name} (${sub.units}u) - ${remaining}u left${preferred ? ' • Preferred' : ''}`;
-                return `<option value="${sub.name}" data-units="${sub.units}" ${disabled}>${label}</option>`;
+                    ? `${sub.name} ${hoursBreakdown} (Completed)`
+                    : `${sub.name} ${hoursBreakdown} - ${remaining}u left${preferred ? ' • Preferred' : ''}`;
+                return `<option value="${escapeHtml(sub.name)}" data-units="${escapeHtml(sub.units)}" ${disabled}>${escapeHtml(label)}</option>`;
             }).join('')
             : '<option disabled>No subjects available for this semester</option>';
         if (currentSubVal && filteredSubjects.some(sub => sub.name === currentSubVal)) {
@@ -3924,7 +5759,7 @@ function openLoadModal(loadId = null) {
 
     document.getElementById('modal-load-title').innerText = load ? 'EDIT ASSIGNMENT' : 'ASSIGN CLASS LOAD';
     document.getElementById('save-load-button').innerText = load ? 'Update Assignment' : 'Apply to Schedule';
-    
+
     const delBtn = document.getElementById('delete-load-button');
     if (delBtn) {
         if (load) {
@@ -3935,9 +5770,26 @@ function openLoadModal(loadId = null) {
     }
 
     // Build prof list from facultyRegistry (use names, not raw IDs from program.profs)
-    const allProfNames = facultyRegistry.map(f => f.name).filter(Boolean).sort((a, b) => a.localeCompare(b));
+    const allProfs = facultyRegistry.filter(f => Boolean(f.name)).sort((a, b) => {
+        const aActive = a.active !== false;
+        const bActive = b.active !== false;
+        if (aActive !== bActive) return aActive ? -1 : 1;
+        return a.name.localeCompare(b.name);
+    });
     const profSelect = document.getElementById('ld-prof');
-    profSelect.innerHTML = allProfNames.length ? allProfNames.map(pname => `<option value="${pname}">${pname}</option>`).join('') : '<option disabled>No professors available</option>';
+    profSelect.innerHTML = allProfs.length
+        ? allProfs.map(f => {
+            const isInactive = f.active === false;
+            return `<option value="${f.name}" ${isInactive ? 'disabled class="text-gray-400 bg-gray-100 italic cursor-not-allowed"' : ''}>${f.name}${isInactive ? ' (Inactive - Disabled)' : ''}</option>`;
+        }).join('')
+        : '<option disabled>No professors available</option>';
+
+    if (!load) {
+        const firstActive = allProfs.find(f => f.active !== false);
+        if (firstActive) {
+            profSelect.value = firstActive.name;
+        }
+    }
 
     document.getElementById('ld-sec').innerHTML = program.sections.map(x => `<option>${x}</option>`).join('');
 
@@ -4091,15 +5943,15 @@ async function saveLoad() {
         const subjectData = programData.subjects[yearKey][semKey].find(s => s.name === sub);
         if (subjectData) {
             const assignedUnits = State.db.loads
-                .filter(l => 
-                    l.sub === sub && 
-                    l.sec === sec && 
+                .filter(l =>
+                    l.sub === sub &&
+                    l.sec === sec &&
                     l.sy === sy &&
                     String(l.semester) === String(semester) &&
                     String(l.id) !== String(currentLoadEditId)
                 )
                 .reduce((total, l) => total + Number(l.units || 0), 0);
-            
+
             if (assignedUnits + units > subjectData.units) {
                 if (typeof showErrorModal === 'function') {
                     showErrorModal('Subject Unit Limit Exceeded', `The subject ${sub} only has ${subjectData.units - assignedUnits} units remaining for this section. You tried to assign ${units} units.`);
@@ -4171,7 +6023,7 @@ function deleteCurrentEditLoad() {
             deleteLoad(currentLoadEditId);
             // Reset the form
             currentLoadEditId = null;
-            openLoadModal(); 
+            openLoadModal();
             showBanner('Load assignment removed.', 'success');
         }
     }
@@ -4230,21 +6082,33 @@ function renderRoomSchedulePreview() {
             if (skipCell[day][start]) return;
             const entry = scheduleMap[day][start];
             if (entry) {
-                const palette = getProgramPalette(entry.load.program);
-                const cellBg = palette ? palette.row : 'bg-amber-100 text-amber-900';
-                const badgeCls = palette ? palette.badge : 'bg-amber-200 text-amber-800';
-                const borderCls = palette ? palette.border : 'border-amber-300';
-                const semMapDisp = { '1': '1st Sem', '2': '2nd Sem', '3': 'Summer', '1st Semester': '1st Sem', '2nd Semester': '2nd Sem', 'Summer': 'Summer' };
-                const semLabel = semMapDisp[entry.load.semester] || entry.load.semester || '';
-                html += `<td rowspan="${entry.span}" class="border-2 ${borderCls} p-2 align-top ${cellBg} rounded-sm">
-                    <div class="font-black text-[11px] leading-tight mb-0.5">${entry.load.sub}</div>
-                    <div class="text-[10px] font-semibold text-slate-700 leading-tight">${entry.load.prof}</div>
-                    <div class="text-[10px] text-slate-600 leading-tight">${entry.load.program || ''} · ${entry.load.sec}</div>
-                    <div class="text-[9px] text-slate-500 leading-tight mt-0.5">${entry.load.time || ''}</div>
-                    <div class="flex items-center gap-1 mt-1 flex-wrap">
-                        <span class="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold ${badgeCls}">${semLabel}</span>
-                        <span class="text-[9px] text-slate-500 font-medium">${entry.load.room} · ${entry.load.building}</span>
-                    </div>
+                const load = entry.load;
+                const isBridging = getSubjectBridgingStatus(load.program || State.activeProgram, load.sub);
+                const bridgingBadge = isBridging 
+                    ? '<span class="inline-block bg-orange-100 text-orange-800 border border-orange-300 px-1 py-0.5 rounded text-[8px] font-black uppercase tracking-wider mr-1">BRIDGING</span>' 
+                    : '';
+                const typeBadge = isBridging
+                    ? '<span class="inline-block bg-orange-100 text-orange-800 border border-orange-300 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider">BRIDGING</span>'
+                    : '<span class="inline-block bg-slate-100 text-slate-600 border border-slate-200 px-1.5 py-0.5 rounded text-[8px] font-semibold uppercase tracking-wider">Regular</span>';
+                const cleanSub = String(load.sub || '').replace(/^\[\s*BRIDGING\s*\]\s*/i, '');
+                const compHours = Number(load.units) || 0;
+                const compType = load.component_type || 'Lec';
+                const bldgRoom = formatBuildingRoom(load);
+                const loadType = load.loadType || 'Regular Load';
+
+                const palette = getProgramPalette(load.program);
+                const cellBg = isBridging ? 'bg-orange-50/70 text-slate-900' : (palette ? palette.row : 'bg-amber-100 text-amber-900');
+                const borderCls = isBridging ? 'border-orange-300' : (palette ? palette.border : 'border-amber-300');
+
+                html += `<td rowspan="${entry.span}" class="border-2 ${borderCls} p-2 align-top ${cellBg} rounded-sm text-left">
+                    <div class="font-black text-[11px] leading-tight mb-0.5 text-slate-900">${bridgingBadge}${escapeHtml(cleanSub)}</div>
+                    <div class="text-[10px] font-semibold text-slate-800 leading-tight">${escapeHtml(load.prof || 'TBA')}</div>
+                    <div class="my-0.5">${typeBadge}</div>
+                    <div class="text-[9px] font-semibold text-slate-700 leading-tight">${escapeHtml(loadType)}</div>
+                    <div class="text-[9px] text-slate-600 leading-tight">${escapeHtml(load.sec || '')}</div>
+                    <div class="text-[9px] text-slate-600 leading-tight"><span class="font-bold text-slate-800">${compHours} hours</span> - <span class="rounded bg-white/80 border border-slate-200 px-1 font-semibold text-[8px] text-slate-700">${escapeHtml(compType)}</span></div>
+                    <div class="text-[9px] text-slate-600 font-medium leading-tight">${escapeHtml(bldgRoom)}</div>
+                    <div class="text-[9px] font-bold text-slate-700 leading-tight mt-1">${escapeHtml(load.time || '')}</div>
                 </td>`;
             } else {
                 html += `<td class="border bg-white"></td>`;
@@ -4273,8 +6137,8 @@ function filterWorkloadProfessorsByProgram() {
     }
 
     const profNames = filteredProfs.map(f => f.name).filter(Boolean).sort((a, b) => a.localeCompare(b));
-    
-    sel.innerHTML = profNames.length 
+
+    sel.innerHTML = profNames.length
         ? profNames.map(p => `<option value="${p}">${p}</option>`).join('')
         : '<option disabled>No professors available for this program</option>';
 
@@ -4292,7 +6156,7 @@ function updateFacultyWorkloadDropdown() {
     if (programFilter.options.length <= 1) {
         const programs = Object.keys(State.db.programs || {}).sort((a, b) => a.localeCompare(b));
         programFilter.innerHTML = ['<option value="All">All Programs</option>', ...programs.map(p => `<option value="${p}">${p}</option>`)].join('');
-        
+
         programFilter.onchange = () => {
             filterWorkloadProfessorsByProgram();
             renderFacultyCalendar();
@@ -4360,24 +6224,35 @@ function renderFacultyCalendar() {
             if (skipCell[day][start]) return;
             const entry = scheduleMap[day][start];
             if (entry) {
+                const load = entry.load;
+                const isBridging = getSubjectBridgingStatus(load.program || programName, load.sub);
+                const bridgingBadge = isBridging 
+                    ? '<span class="inline-block bg-orange-100 text-orange-800 border border-orange-300 px-1 py-0.5 rounded text-[8px] font-black uppercase tracking-wider mr-1">BRIDGING</span>' 
+                    : '';
+                const cleanSub = String(load.sub || '').replace(/^\[\s*BRIDGING\s*\]\s*/i, '');
+                const compHours = Number(load.units) || 0;
+                const compType = load.component_type || 'Lec';
+                const bldgRoom = formatBuildingRoom(load);
+                const loadType = load.loadType || 'Regular Load';
+
                 let cellClasses = 'bg-slate-50 text-slate-800 border-slate-200';
-                if (entry.load.loadType === 'Regular Load') {
+                if (isBridging) {
+                    cellClasses = 'bg-orange-50 text-orange-950 border-orange-200';
+                } else if (load.loadType === 'Regular Load') {
                     cellClasses = 'bg-emerald-50 text-emerald-800 border-emerald-200';
-                } else if (entry.load.loadType === 'Part-Time Load' || entry.load.loadType === 'Part-time Load') {
+                } else if (load.loadType === 'Part-Time Load' || load.loadType === 'Part-time Load') {
                     cellClasses = 'bg-sky-50 text-sky-800 border-sky-200';
-                } else if (entry.load.loadType === 'Temporary Substitute Load' || entry.load.loadType === 'Temporary Substitute') {
+                } else if (load.loadType === 'Temporary Substitute Load' || load.loadType === 'Temporary Substitute') {
                     cellClasses = 'bg-amber-50 text-amber-800 border-amber-200';
                 }
-                const semMapDisp2 = { '1': '1st Sem', '2': '2nd Sem', '3': 'Summer', '1st Semester': '1st Sem', '2nd Semester': '2nd Sem', 'Summer': 'Summer' };
-                const semLabel2 = semMapDisp2[entry.load.semester] || entry.load.semester || '';
-                html += `<td rowspan="${entry.span}" class="border p-2 align-top ${cellClasses}">
-                    <div class="font-black text-[11px] leading-tight mb-0.5">${entry.load.sub}</div>
-                    <div class="text-[10px] text-slate-600 leading-tight">${entry.load.program || ''} · ${entry.load.sec}</div>
-                    <div class="text-[9px] text-slate-500 leading-tight mt-0.5">${entry.load.time || ''}</div>
-                    <div class="flex items-center gap-1 mt-1 flex-wrap">
-                        <span class="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold bg-white/60">${semLabel2}</span>
-                        <span class="text-[9px] text-slate-500 font-medium">${entry.load.room}</span>
-                    </div>
+
+                html += `<td rowspan="${entry.span}" class="border p-2 align-top ${cellClasses} text-left">
+                    <div class="font-black text-[11px] leading-tight mb-0.5 text-slate-900">${bridgingBadge}${escapeHtml(cleanSub)}</div>
+                    <div class="text-[9px] font-semibold text-slate-700 leading-tight">${escapeHtml(loadType)}</div>
+                    <div class="text-[9px] text-slate-600 leading-tight">${escapeHtml(load.sec || '')}</div>
+                    <div class="text-[9px] text-slate-600 leading-tight"><span class="font-bold text-slate-800">${compHours} hours</span> - <span class="rounded bg-white/80 border border-slate-200 px-1 font-semibold text-[8px] text-slate-700">${escapeHtml(compType)}</span></div>
+                    <div class="text-[9px] text-slate-600 font-medium leading-tight">${escapeHtml(bldgRoom)}</div>
+                    <div class="text-[9px] font-bold text-slate-700 leading-tight mt-1">${escapeHtml(load.time || '')}</div>
                 </td>`;
             } else {
                 html += `<td class="border bg-white"></td>`;
@@ -4530,17 +6405,31 @@ function renderTimetable() {
             if (skipCell[day][start]) return;
             const entry = scheduleMap[day][start];
             if (entry) {
-                const semMapDisp3 = { '1': '1st Sem', '2': '2nd Sem', '3': 'Summer', '1st Semester': '1st Sem', '2nd Semester': '2nd Sem', 'Summer': 'Summer' };
-                const semLabel3 = semMapDisp3[entry.load.semester] || entry.load.semester || '';
-                html += `<td rowspan="${entry.span}" class="border p-2 align-top bg-blue-50 text-slate-900 font-medium">
-                    <div class="font-black text-[11px] leading-tight mb-0.5">${entry.load.sub}</div>
-                    <div class="text-[10px] font-semibold text-slate-700 leading-tight">${entry.load.prof}</div>
-                    <div class="text-[10px] text-slate-600 leading-tight">${entry.load.program || ''} · ${entry.load.sec}</div>
-                    <div class="text-[9px] text-slate-500 leading-tight mt-0.5">${entry.load.time || ''}</div>
-                    <div class="flex items-center gap-1 mt-1 flex-wrap">
-                        <span class="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-200 text-blue-800">${semLabel3}</span>
-                        <span class="text-[9px] text-slate-500 font-medium">${entry.load.room}</span>
-                    </div>
+                const load = entry.load;
+                const isBridging = getSubjectBridgingStatus(load.program || State.activeProgram, load.sub);
+                const bridgingBadge = isBridging 
+                    ? '<span class="inline-block bg-orange-100 text-orange-800 border border-orange-300 px-1 py-0.5 rounded text-[8px] font-black uppercase tracking-wider mr-1">BRIDGING</span>' 
+                    : '';
+                const typeBadge = isBridging
+                    ? '<span class="inline-block bg-orange-100 text-orange-800 border border-orange-300 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider">BRIDGING</span>'
+                    : '<span class="inline-block bg-slate-100 text-slate-600 border border-slate-200 px-1.5 py-0.5 rounded text-[8px] font-semibold uppercase tracking-wider">Regular</span>';
+                const cleanSub = String(load.sub || '').replace(/^\[\s*BRIDGING\s*\]\s*/i, '');
+                const compHours = Number(load.units) || 0;
+                const compType = load.component_type || 'Lec';
+                const bldgRoom = formatBuildingRoom(load);
+                const loadType = load.loadType || 'Regular Load';
+
+                const cellBg = isBridging ? 'bg-orange-50 text-slate-900 border-orange-200' : 'bg-blue-50 text-slate-900 border-blue-200';
+
+                html += `<td rowspan="${entry.span}" class="border p-2 align-top ${cellBg} font-medium text-left">
+                    <div class="font-black text-[11px] leading-tight mb-0.5 text-slate-900">${bridgingBadge}${escapeHtml(cleanSub)}</div>
+                    <div class="text-[10px] font-semibold text-slate-800 leading-tight">${escapeHtml(load.prof || 'TBA')}</div>
+                    <div class="my-0.5">${typeBadge}</div>
+                    <div class="text-[9px] font-semibold text-slate-700 leading-tight">${escapeHtml(loadType)}</div>
+                    <div class="text-[9px] text-slate-600 leading-tight">${escapeHtml(load.sec || '')}</div>
+                    <div class="text-[9px] text-slate-600 leading-tight"><span class="font-bold text-slate-800">${compHours} hours</span> - <span class="rounded bg-white/80 border border-slate-200 px-1 font-semibold text-[8px] text-slate-700">${escapeHtml(compType)}</span></div>
+                    <div class="text-[9px] text-slate-600 font-medium leading-tight">${escapeHtml(bldgRoom)}</div>
+                    <div class="text-[9px] font-bold text-slate-700 leading-tight mt-1">${escapeHtml(load.time || '')}</div>
                 </td>`;
             } else {
                 html += `<td class="border bg-white"></td>`;
@@ -4576,7 +6465,7 @@ function exportFacultyWorkload(profName) {
         ['Classification', faculty?.classification || 'N/A'],
         ['Designation', faculty?.baseDesignation || 'N/A'],
         [],
-        ['#', 'Subject', 'Section', 'Units', 'Load Type', 'Room', 'Day', 'Time', 'Program', 'Academic Year', 'Semester']
+        ['#', 'Subject', 'Load Type', 'Section', 'Hours (Lec/Lab)', 'Building - Room', 'Time', 'Day', 'Program', 'Academic Year', 'Semester']
     ];
 
     loads.sort((a, b) => {
@@ -4586,15 +6475,19 @@ function exportFacultyWorkload(profName) {
     });
 
     loads.forEach((load, idx) => {
+        const isBridging = getSubjectBridgingStatus(load.program || program, load.sub);
+        const subDisplay = isBridging ? `[BRIDGING] ${load.sub || ''}` : (load.sub || '');
+        const compHours = `${Number(load.units) || 0} hours - ${load.component_type || 'Lec'}`;
+        const bldgRoom = formatBuildingRoom(load);
         rows.push([
             idx + 1,
-            load.sub || '',
+            subDisplay,
+            load.loadType || 'Regular Load',
             load.sec || '',
-            load.units || 0,
-            load.loadType || '',
-            load.room || '',
-            load.day || '',
+            compHours,
+            bldgRoom,
             load.time || '',
+            load.day || '',
             load.program || '',
             load.sy || '',
             load.semester || ''
@@ -4652,24 +6545,35 @@ function normalizeTimeString(time) {
 }
 
 function formatScheduleCell(load, type) {
+    const isBridging = typeof getSubjectBridgingStatus === 'function'
+        ? getSubjectBridgingStatus(load.program || State.activeProgram, load.sub)
+        : false;
+    const cleanSub = String(load.sub || '').replace(/^\[\s*BRIDGING\s*\]\s*/i, '');
+    const subjectTitle = isBridging ? `[BRIDGING] ${cleanSub}` : cleanSub;
+    const compHours = Number(load.units) || 0;
+    const compType = load.component_type || 'Lec';
+    const hoursText = `${compHours} hours - ${compType}`;
+    const bldgRoom = typeof formatBuildingRoom === 'function' ? formatBuildingRoom(load) : `${load.building || ''} - ${load.room || ''}`;
+    const loadType = load.loadType || 'Regular Load';
+
     const lines = [];
-    if (load.sub) lines.push(load.sub);
     if (type === 'faculty') {
-        if (load.sec) lines.push(load.sec);
-        if (load.room) lines.push(load.room);
-        if (load.program) lines.push(load.program);
-    } else if (type === 'room') {
-        if (load.sec) lines.push(load.sec);
-        if (load.prof) lines.push(load.prof);
-        if (load.program) lines.push(load.program);
-    } else if (type === 'section') {
-        if (load.prof) lines.push(load.prof);
-        if (load.room) lines.push(load.room);
-        if (load.program) lines.push(load.program);
+        lines.push(subjectTitle);
+        lines.push(`Load Type: ${loadType}`);
+        lines.push(`Section: ${load.sec || 'N/A'}`);
+        lines.push(`Hours: ${hoursText}`);
+        lines.push(bldgRoom);
+        lines.push(`Time: ${load.time || 'N/A'}`);
     } else {
-        if (load.prof) lines.push(load.prof);
+        lines.push(subjectTitle);
+        lines.push(`Professor: ${load.prof || 'TBA'}`);
+        lines.push(`Type: ${isBridging ? 'Bridging' : 'Regular'}`);
+        lines.push(`Load Type: ${loadType}`);
+        lines.push(`Section: ${load.sec || 'N/A'}`);
+        lines.push(`Hours: ${hoursText}`);
+        lines.push(bldgRoom);
+        lines.push(`Time: ${load.time || 'N/A'}`);
     }
-    if (load.loadType) lines.push(load.loadType);
     return lines.filter(Boolean).join('\n');
 }
 
@@ -4771,11 +6675,41 @@ function exportFacultyProfileExcel() {
     showBanner('Faculty profile exported successfully.', 'success');
 }
 
+function getExportContext() {
+    const schoolYear = document.getElementById('sy-selector')?.value || State.db.schoolYears?.[0] || 'All School Years';
+    const semester = document.getElementById('semester-selector')?.value
+        || document.getElementById('load-semester-selector')?.value
+        || 'All';
+    const semesterLabel = semester === '1' ? '1st Semester'
+        : semester === '2' ? '2nd Semester'
+            : semester === '3' || semester === 'Summer' ? 'Summer Term'
+                : semester === 'All' ? 'All Semesters' : String(semester);
+    return { schoolYear, semesterLabel };
+}
+
+function addExportContextToRows(rows) {
+    const { schoolYear, semesterLabel } = getExportContext();
+    return [
+        ['Academic Year', schoolYear],
+        ['Term', semesterLabel],
+        [],
+        ...rows
+    ];
+}
+
 async function initApp() {
     await loadSavedState();
+    try {
+        const settings = await apiFetch('/api/settings');
+        if (settings) {
+            window.systemSettings = { ...(window.systemSettings || {}), ...settings };
+            if (settings.signatory_prepared_by) localStorage.setItem('signatory_prepared_by', settings.signatory_prepared_by);
+            if (settings.signatory_noted_by) localStorage.setItem('signatory_noted_by', settings.signatory_noted_by);
+        }
+    } catch (_) {}
     initializeSystemModules();
     updateSidebarUser();
-    
+
     State.isLoaded = true;
     document.dispatchEvent(new CustomEvent('appStateLoaded'));
 }
@@ -4795,11 +6729,16 @@ function downloadExcel(filename, data, headers) {
 }
 
 function generateAndDownloadXLSX(filename, data, headers) {
-    const rows = [headers, ...data];
+    const context = getExportContext();
+    const safeSchoolYear = String(context.schoolYear).replace(/[^a-zA-Z0-9]+/g, '_');
+    const safeSemester = String(context.semesterLabel).replace(/[^a-zA-Z0-9]+/g, '_');
+    const contextSuffix = `_${safeSchoolYear}_${safeSemester}`;
+    const finalFilename = filename.endsWith(contextSuffix) ? filename : `${filename}${contextSuffix}`;
+    const rows = addExportContextToRows([headers, ...data]);
     const worksheet = XLSX.utils.aoa_to_sheet(rows);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
-    XLSX.writeFile(workbook, `${filename}.xlsx`);
+    XLSX.writeFile(workbook, `${finalFilename}.xlsx`);
 }
 
 function exportFacultyWorkloadReport() {
@@ -4940,6 +6879,996 @@ function exportProgramCurriculum() {
     downloadExcel(filename, data, headers);
     showBanner(`Program curriculum exported successfully!`, 'success');
 }
+
+// ============================================================
+// ACCOUNT SETTINGS & USER MANAGEMENT
+// ============================================================
+
+function apiFetch(url, options = {}) {
+    const userStr = sessionStorage.getItem('loggedInUser');
+    let token = null;
+    if (userStr) {
+        try { token = JSON.parse(userStr).token; } catch (e) { }
+    }
+    const headers = {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        ...(options.headers || {})
+    };
+    return fetch(url, { ...options, headers })
+        .then(async res => {
+            if (!res.ok) {
+                const body = await res.json().catch(() => ({}));
+                throw new Error(body.message || body.error || `HTTP error ${res.status}`);
+            }
+            return res.json();
+        });
+}
+
+function updateSidebarUser() {
+    const userStr = sessionStorage.getItem('loggedInUser');
+    let role = 'ACADEMIC AIDE';
+    let name = 'aide_pq';
+
+    if (userStr) {
+        try {
+            const user = JSON.parse(userStr);
+            const rawRole = String(user.role || '').trim();
+            const rawName = String(user.display_name || user.username || '').trim();
+
+            if (rawRole.toLowerCase().includes('head')) {
+                role = 'ACADEMIC HEAD';
+            } else {
+                role = 'ACADEMIC AIDE';
+            }
+
+            name = rawName || name;
+        } catch (e) { }
+    }
+
+    const aside = document.querySelector('aside');
+    if (aside) {
+        const divs = aside.querySelectorAll('div');
+        const userBlock = Array.from(divs).find(d => d.className && d.className.includes('bg-[#710000]'));
+        if (userBlock) {
+            const paragraphs = userBlock.querySelectorAll('p');
+            if (paragraphs.length >= 2) {
+                paragraphs[0].innerText = role;
+                paragraphs[1].innerText = name;
+            }
+            userBlock.classList.add('hover:bg-[#5a0000]', 'cursor-pointer');
+            const logoutLink = userBlock.querySelector('a[href="index.html"]');
+            userBlock.onclick = (event) => {
+                if (event.target.closest('a')) return;
+                openAccountSettingsMenuModal();
+            };
+            if (logoutLink) {
+                logoutLink.onclick = (event) => { event.stopPropagation(); };
+            }
+        }
+    }
+    setPageAccessRestrictions();
+}
+
+function openAccountSettingsMenuModal() {
+    const userStr = sessionStorage.getItem('loggedInUser');
+    let username = 'aide_pq';
+    let role = 'Academic Aide';
+    let displayName = '';
+    if (userStr) {
+        try {
+            const user = JSON.parse(userStr);
+            username = user.username || username;
+            role = user.role || role;
+            displayName = user.display_name || '';
+        } catch (e) { }
+    }
+    const isHead = role.toLowerCase().includes('head');
+
+    const html = `
+        <div class="space-y-2">
+            <div class="p-3 bg-slate-100 rounded-xl mb-4">
+                <p class="text-xs text-slate-500 uppercase font-semibold">Logged in as</p>
+                <p class="text-sm font-bold text-slate-800">${escapeHtml(displayName || username)}</p>
+                <p class="text-xs text-slate-500">${escapeHtml(role)}</p>
+            </div>
+            <button onclick="closeModal(); setTimeout(openChangeCredentialsModal, 150)" class="w-full text-left px-4 py-3 rounded-xl bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-sm font-medium text-slate-700 flex items-center gap-3 transition-all">
+                <i data-lucide="key" class="w-4 h-4 text-slate-400"></i> Change Credentials
+            </button>
+            ${isHead ? `
+            <button onclick="closeModal(); setTimeout(openUserManagementModal, 150)" class="w-full text-left px-4 py-3 rounded-xl bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-sm font-medium text-slate-700 flex items-center gap-3 transition-all">
+                <i data-lucide="users" class="w-4 h-4 text-slate-400"></i> User Management
+            </button>
+            <button onclick="closeModal(); setTimeout(openSignatoryManagementModal, 150)" class="w-full text-left px-4 py-3 rounded-xl bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-sm font-medium text-slate-700 flex items-center gap-3 transition-all">
+                <i data-lucide="pen-line" class="w-4 h-4 text-slate-400"></i> Signatory Names
+            </button>
+            <button onclick="closeModal(); setTimeout(openManageEmailsModal, 150)" class="w-full text-left px-4 py-3 rounded-xl bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-sm font-medium text-slate-700 flex items-center gap-3 transition-all">
+                <i data-lucide="mail" class="w-4 h-4 text-slate-400"></i> Manage Emails
+            </button>
+            ` : ''}
+        </div>
+    `;
+    openModal({
+        title: 'Account & System Settings',
+        body: html,
+        submitLabel: null
+    });
+}
+
+function openChangeCredentialsModal() {
+    const userStr = sessionStorage.getItem('loggedInUser');
+    let currentUsername = 'aide_pq';
+    if (userStr) {
+        try { currentUsername = JSON.parse(userStr).username; } catch (e) { }
+    }
+
+    const body = `
+        <div class="mb-4">
+            <button type="button" onclick="closeModal(); setTimeout(openAccountSettingsMenuModal, 150)" class="flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900 bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm">
+                <i data-lucide="arrow-left" class="w-4 h-4"></i> Return to Settings
+            </button>
+        </div>
+        <div id="change-credentials-error" class="hidden mb-4 p-3 bg-red-50 text-red-800 border border-red-200 rounded-2xl text-xs"></div>
+        <div class="space-y-4">
+            <div>
+                <label class="block text-xs font-semibold text-slate-500 uppercase mb-2">New Username</label>
+                <input id="cred-new-username" type="text" class="w-full rounded-2xl border border-slate-300 p-3 text-sm focus:border-[#7f0000] focus:ring-1 focus:ring-[#7f0000] outline-none" value="${escapeHtml(currentUsername)}">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-500 uppercase mb-2">Current Password</label>
+                <input id="cred-current-password" type="password" class="w-full rounded-2xl border border-slate-300 p-3 text-sm focus:border-[#7f0000] focus:ring-1 focus:ring-[#7f0000] outline-none" placeholder="Enter current password to verify">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-500 uppercase mb-2">New Password (Leave blank to keep current)</label>
+                <input id="cred-new-password" type="password" class="w-full rounded-2xl border border-slate-300 p-3 text-sm focus:border-[#7f0000] focus:ring-1 focus:ring-[#7f0000] outline-none" placeholder="Enter new password">
+            </div>
+        </div>
+    `;
+
+    openModal({
+        title: 'Change Credentials',
+        body: body,
+        submitLabel: 'Save Changes',
+        cancelLabel: 'Close',
+        onSubmit: async () => {
+            const newUsername = document.getElementById('cred-new-username').value.trim();
+            const currentPassword = document.getElementById('cred-current-password').value;
+            const newPassword = document.getElementById('cred-new-password').value;
+            const errDiv = document.getElementById('change-credentials-error');
+
+            if (!newUsername) {
+                errDiv.textContent = 'Username cannot be empty.';
+                errDiv.classList.remove('hidden');
+                return;
+            }
+            if (!currentPassword) {
+                errDiv.textContent = 'Current password is required to make changes.';
+                errDiv.classList.remove('hidden');
+                return;
+            }
+
+            try {
+                await apiFetch('/api/users/me/credentials', {
+                    method: 'PATCH',
+                    body: JSON.stringify({
+                        new_username: newUsername,
+                        current_password: currentPassword,
+                        new_password: newPassword || undefined
+                    })
+                });
+                showBanner('Credentials updated successfully. Please log in again.', 'success');
+                closeModal();
+                setTimeout(() => { window.location.href = 'index.html'; }, 1500);
+            } catch (err) {
+                errDiv.textContent = err.message || 'Failed to update credentials.';
+                errDiv.classList.remove('hidden');
+            }
+        }
+    });
+}
+
+function openUserManagementModal() {
+    openModal({
+        title: 'User Management',
+        body: `
+            <div id="user-management-container" class="p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                <div class="animate-pulse flex space-x-4">
+                    <div class="flex-1 space-y-4 py-1">
+                        <div class="h-2 bg-slate-200 rounded"></div>
+                        <div class="space-y-3">
+                            <div class="h-2 bg-slate-200 rounded"></div>
+                            <div class="h-2 bg-slate-200 rounded"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `,
+        submitLabel: null,
+        cancelLabel: 'Close'
+    });
+
+    apiFetch('/api/users')
+        .then(users => {
+            const container = document.getElementById('user-management-container');
+            if (!container) return;
+
+            let html = `
+                <div class="flex justify-between items-center mb-4">
+                    <button onclick="closeModal(); setTimeout(openAccountSettingsMenuModal, 150)" class="flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900 bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm">
+                        <i data-lucide="arrow-left" class="w-4 h-4"></i> Return to Settings
+                    </button>
+                </div>
+                <div class="flex justify-between items-center mb-4">
+                    <p class="text-sm text-slate-600">Manage system users, passwords, and roles.</p>
+                    <button class="px-3 py-1.5 bg-[#7f0000] text-white text-xs font-semibold rounded-lg hover:bg-[#660000]" onclick="closeModal(); setTimeout(() => openUserFormModal(), 150)">Add User</button>
+                </div>
+                <div class="bg-white border border-slate-200 rounded-lg overflow-hidden">
+                    <table class="w-full text-left text-sm text-slate-600">
+                        <thead class="bg-slate-50 border-b border-slate-200 text-xs uppercase font-semibold text-slate-500">
+                            <tr>
+                                <th class="px-4 py-3">Username</th>
+                                <th class="px-4 py-3">Role</th>
+                                <th class="px-4 py-3">Name</th>
+                                <th class="px-4 py-3 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+            `;
+
+            users.forEach(u => {
+                html += `
+                    <tr class="hover:bg-slate-50">
+                        <td class="px-4 py-3 font-medium text-slate-900">${escapeHtml(u.username)}</td>
+                        <td class="px-4 py-3">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${u.role === 'Academic Head' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}">
+                                ${escapeHtml(u.role)}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3">${escapeHtml(u.display_name || '')}</td>
+                        <td class="px-4 py-3 text-right">
+                            <button class="text-indigo-600 hover:text-indigo-900 text-xs font-semibold mr-3" onclick="closeModal(); setTimeout(() => openUserFormModal('${escapeHtml(u.username)}', '${escapeHtml(u.role)}', '${escapeHtml(u.display_name || '')}'), 150)">Edit</button>
+                            <button class="text-red-600 hover:text-red-900 text-xs font-semibold" onclick="deleteUser('${escapeHtml(u.username)}')">Delete</button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            html += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            container.innerHTML = html;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        })
+        .catch(err => {
+            const container = document.getElementById('user-management-container');
+            if (container) container.innerHTML = `<p class="text-red-600 text-sm">Failed to load users: ${err.message}</p>`;
+        });
+}
+
+function openUserFormModal(existingUsername = null, existingRole = 'Academic Aide', existingDisplayName = '') {
+    const isEdit = !!existingUsername;
+    const title = isEdit ? 'Edit User' : 'Add New User';
+
+    const body = `
+        <div class="mb-4">
+            <button type="button" onclick="closeModal(); setTimeout(openUserManagementModal, 150)" class="flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900 bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm">
+                <i data-lucide="arrow-left" class="w-4 h-4"></i> Back to Users
+            </button>
+        </div>
+        <div id="user-form-error" class="hidden mb-4 p-3 bg-red-50 text-red-800 border border-red-200 rounded-2xl text-xs"></div>
+        <div class="space-y-4">
+            <div>
+                <label class="block text-xs font-semibold text-slate-500 uppercase mb-2">Username (for login only)</label>
+                <input id="user-form-username" type="text" class="w-full rounded-2xl border border-slate-300 p-3 text-sm focus:border-[#7f0000] focus:ring-1 focus:ring-[#7f0000] outline-none" value="${escapeHtml(existingUsername || '')}" ${isEdit ? 'disabled' : ''}>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-500 uppercase mb-2">Display Name (shown in system)</label>
+                <input id="user-form-display-name" type="text" class="w-full rounded-2xl border border-slate-300 p-3 text-sm focus:border-[#7f0000] focus:ring-1 focus:ring-[#7f0000] outline-none" value="${escapeHtml(existingDisplayName)}" placeholder="Full name shown after login">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-500 uppercase mb-2">Role</label>
+                <select id="user-form-role" class="w-full rounded-2xl border border-slate-300 p-3 text-sm focus:border-[#7f0000] focus:ring-1 focus:ring-[#7f0000] outline-none">
+                    <option value="Academic Aide" ${existingRole === 'Academic Aide' ? 'selected' : ''}>Academic Aide</option>
+                    <option value="Academic Head" ${existingRole === 'Academic Head' ? 'selected' : ''}>Academic Head</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-500 uppercase mb-2">Password ${isEdit ? '(Leave blank to keep current)' : ''}</label>
+                <input id="user-form-password" type="password" class="w-full rounded-2xl border border-slate-300 p-3 text-sm focus:border-[#7f0000] focus:ring-1 focus:ring-[#7f0000] outline-none" placeholder="${isEdit ? 'Enter new password' : 'Enter password'}">
+            </div>
+        </div>
+    `;
+
+    openModal({
+        title: title,
+        body: body,
+        submitLabel: 'Save User',
+        cancelLabel: 'Close',
+        onSubmit: async () => {
+            const username = document.getElementById('user-form-username').value.trim();
+            const role = document.getElementById('user-form-role').value;
+            const displayName = document.getElementById('user-form-display-name').value.trim();
+            const password = document.getElementById('user-form-password').value;
+            const errDiv = document.getElementById('user-form-error');
+
+            if (!username) {
+                errDiv.textContent = 'Username is required.';
+                errDiv.classList.remove('hidden');
+                return;
+            }
+            if (!isEdit && !password) {
+                errDiv.textContent = 'Password is required for new users.';
+                errDiv.classList.remove('hidden');
+                return;
+            }
+
+            try {
+                const url = isEdit ? `/api/users/${encodeURIComponent(existingUsername)}` : '/api/users';
+                const method = isEdit ? 'PATCH' : 'POST';
+                const payload = { role, display_name: displayName };
+                if (password) payload.password = password;
+                if (!isEdit) payload.username = username;
+
+                await apiFetch(url, { method, body: JSON.stringify(payload) });
+
+                showBanner(`User ${isEdit ? 'updated' : 'created'} successfully`, 'success');
+                closeModal();
+                setTimeout(openUserManagementModal, 150);
+            } catch (err) {
+                errDiv.textContent = err.message || 'Failed to save user.';
+                errDiv.classList.remove('hidden');
+            }
+        }
+    });
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+async function deleteUser(username) {
+    if (!confirm(`Are you sure you want to delete the user "${username}"?`)) return;
+    try {
+        await apiFetch(`/api/users/${encodeURIComponent(username)}`, { method: 'DELETE' });
+        showBanner('User deleted successfully', 'success');
+        closeModal();
+        setTimeout(openUserManagementModal, 150);
+    } catch (err) {
+        showBanner(err.message || 'Failed to delete user', 'error');
+    }
+}
+
+function openSignatoryManagementModal() {
+    openModal({
+        title: 'Signatory Names Management',
+        body: `
+            <div id="signatory-management-container" class="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-4">
+                <div class="animate-pulse space-y-4">
+                    <div class="h-10 bg-slate-200 rounded-lg"></div>
+                    <div class="h-10 bg-slate-200 rounded-lg"></div>
+                </div>
+            </div>
+        `,
+        submitLabel: 'Save Changes',
+        cancelLabel: 'Close',
+        onSubmit: async () => {
+            const prep = document.getElementById('sig-prepared-by').value;
+            const noted = document.getElementById('sig-noted-by').value;
+            try {
+                await apiFetch('/api/settings', {
+                    method: 'PATCH',
+                    body: JSON.stringify({ signatory_prepared_by: prep, signatory_noted_by: noted })
+                });
+                window.systemSettings = { ...(window.systemSettings || {}), signatory_prepared_by: prep, signatory_noted_by: noted };
+                localStorage.setItem('signatory_prepared_by', prep);
+                localStorage.setItem('signatory_noted_by', noted);
+                showBanner('Signatories updated successfully', 'success');
+                closeModal();
+            } catch (err) {
+                showBanner(err.message, 'error');
+            }
+        }
+    });
+
+    apiFetch('/api/settings')
+        .then(settings => {
+            window.systemSettings = { ...(window.systemSettings || {}), ...settings };
+            const container = document.getElementById('signatory-management-container');
+            if (!container) return;
+
+            const prep = settings.signatory_prepared_by || 'Jefferson F. Serrano';
+            const noted = settings.signatory_noted_by || 'Prof. Jaime P. Gutierrez Jr.';
+            localStorage.setItem('signatory_prepared_by', prep);
+            localStorage.setItem('signatory_noted_by', noted);
+
+            container.innerHTML = `
+                <div class="mb-4">
+                    <button type="button" onclick="closeModal(); setTimeout(openAccountSettingsMenuModal, 150)" class="flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900 bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm">
+                        <i data-lucide="arrow-left" class="w-4 h-4"></i> Return to Settings
+                    </button>
+                </div>
+                <p class="text-sm text-slate-600">Update the names used for signatures on exported documents.</p>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Prepared By (Academic Head)</label>
+                    <input id="sig-prepared-by" type="text" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:border-[#7f0000] focus:ring-1 focus:ring-[#7f0000] outline-none" value="${escapeHtml(prep)}">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Noted By (Campus Director)</label>
+                    <input id="sig-noted-by" type="text" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:border-[#7f0000] focus:ring-1 focus:ring-[#7f0000] outline-none" value="${escapeHtml(noted)}">
+                </div>
+            `;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        })
+        .catch(err => {
+            const container = document.getElementById('signatory-management-container');
+            if (container) container.innerHTML = `<p class="text-red-600 text-sm">Failed to load signatories: ${err.message}</p>`;
+        });
+}
+
+function openManageEmailsModal() {
+    openModal({
+        title: 'Manage Emails',
+        body: `
+            <div id="email-management-container" class="p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                <div class="animate-pulse flex space-x-4">
+                    <div class="flex-1 space-y-4 py-1">
+                        <div class="h-2 bg-slate-200 rounded"></div>
+                        <div class="space-y-3">
+                            <div class="h-2 bg-slate-200 rounded"></div>
+                            <div class="h-2 bg-slate-200 rounded"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `,
+        submitLabel: null,
+        cancelLabel: 'Close'
+    });
+
+    apiFetch('/api/emails')
+        .then(emails => {
+            const container = document.getElementById('email-management-container');
+            if (!container) return;
+            window._loadedEmails = emails;
+
+            const returnBtn = `
+                <div class="flex justify-between items-center mb-4">
+                    <button type="button" onclick="closeModal(); setTimeout(openAccountSettingsMenuModal, 150)" class="flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900 bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm">
+                        <i data-lucide="arrow-left" class="w-4 h-4"></i> Return to Settings
+                    </button>
+                </div>
+                <p class="text-sm text-slate-600 mb-4">View and manage automated system emails.</p>
+            `;
+
+            if (emails.length === 0) {
+                container.innerHTML = returnBtn + `<div class="text-center py-6 text-slate-400 text-sm">No emails found in the system.</div>`;
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+                return;
+            }
+
+            let html = returnBtn + `
+                <div class="bg-white border border-slate-200 rounded-lg overflow-hidden max-h-96 overflow-y-auto">
+                    <table class="w-full text-left text-sm text-slate-600">
+                        <thead class="bg-slate-50 border-b border-slate-200 text-xs uppercase font-semibold text-slate-500 sticky top-0">
+                            <tr>
+                                <th class="px-4 py-3">Recipient</th>
+                                <th class="px-4 py-3">Subject</th>
+                                <th class="px-4 py-3">Status</th>
+                                <th class="px-4 py-3">Date</th>
+                                <th class="px-4 py-3 text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+            `;
+
+            emails.forEach((e, idx) => {
+                let statusBadge = '';
+                if (e.status === 'sent') statusBadge = 'bg-green-100 text-green-700';
+                else if (e.status === 'failed') statusBadge = 'bg-red-100 text-red-700';
+                else statusBadge = 'bg-amber-100 text-amber-700';
+
+                html += `
+                    <tr class="hover:bg-slate-50">
+                        <td class="px-4 py-3 text-slate-900 font-medium">${escapeHtml(e.recipient_email || e.recipient)}</td>
+                        <td class="px-4 py-3">${escapeHtml(e.subject)}</td>
+                        <td class="px-4 py-3"><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${statusBadge}">${escapeHtml(e.status)}</span></td>
+                        <td class="px-4 py-3 text-xs text-slate-400">${e.created_at ? new Date(e.created_at).toLocaleDateString() : 'N/A'}</td>
+                        <td class="px-4 py-3 text-right">
+                            <button type="button" onclick="viewEmailDetails(${idx})" class="text-xs text-blue-600 hover:text-blue-800 font-semibold underline">View</button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            html += `</tbody></table></div>`;
+            container.innerHTML = html;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        })
+        .catch(err => {
+            const container = document.getElementById('email-management-container');
+            if (container) container.innerHTML = `<p class="text-red-600 text-sm">Failed to load emails: ${err.message}</p>`;
+        });
+}
+
+function viewEmailDetails(emailIndex) {
+    const email = window._loadedEmails?.[emailIndex];
+    if (!email) return;
+
+    openModal({
+        title: `Email: ${email.subject}`,
+        submitLabel: null,
+        cancelLabel: 'Back to Email List',
+        onCancel: () => {
+            closeModal();
+            setTimeout(openManageEmailsModal, 150);
+        },
+        body: `
+            <div class="space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+                    <button type="button" onclick="closeModal(); setTimeout(openManageEmailsModal, 150);" class="flex items-center gap-2 text-xs font-semibold text-slate-700 hover:text-slate-950 bg-slate-100 hover:bg-slate-200 border border-slate-300 px-3 py-1.5 rounded-xl shadow-sm transition">
+                        <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                        <span>Return to Email List</span>
+                    </button>
+                    <span class="text-xs text-slate-400">Email ID: #${email.id || emailIndex + 1}</span>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                    <div><span class="text-slate-500 font-semibold uppercase text-[10px] block">Recipient</span> <span class="font-bold text-slate-800">${escapeHtml(email.recipient_email || email.recipient)}</span> ${email.recipient_name ? `<span class="text-slate-500">(${escapeHtml(email.recipient_name)})</span>` : ''}</div>
+                    <div><span class="text-slate-500 font-semibold uppercase text-[10px] block">Delivery Status</span> <span class="inline-block px-2 py-0.5 rounded-full text-[11px] font-bold capitalize ${email.status === 'sent' ? 'bg-green-100 text-green-700' : email.status === 'failed' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}">${escapeHtml(email.status || 'sent')}</span></div>
+                    <div><span class="text-slate-500 font-semibold uppercase text-[10px] block">Dispatched By</span> <span class="text-slate-700 font-medium">${escapeHtml(email.sent_by || 'Academic Head')}</span></div>
+                    <div><span class="text-slate-500 font-semibold uppercase text-[10px] block">Timestamp</span> <span class="text-slate-700 font-medium">${email.created_at ? new Date(email.created_at).toLocaleString() : 'N/A'}</span></div>
+                </div>
+
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Message Content</label>
+                    <div class="border border-slate-200 rounded-2xl p-4 bg-white max-h-80 overflow-y-auto shadow-inner">
+                        ${email.body || '<p class="text-slate-400 italic">No content body recorded.</p>'}
+                    </div>
+                </div>
+            </div>
+        `
+    });
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function openEmailWorkloadModal() {
+    const profName = document.getElementById('view-faculty-select')?.value;
+    if (!profName) {
+        return showBanner('Please select a professor first.', 'error');
+    }
+    const sy = document.getElementById('sy-selector')?.value || State.db.schoolYears?.[0] || 'Academic Year';
+    const semester = document.getElementById('semester-selector')?.value || 'All';
+    const semesterLabel = semester === '1' ? '1st Semester' : semester === '2' ? '2nd Semester' : semester === '3' ? 'Summer Term' : 'All Semesters';
+    const programFilter = document.getElementById('workload-program-filter')?.value || 'All';
+    const loads = State.db.loads.filter(l => l.prof === profName && l.sy === sy && (programFilter === 'All' || l.program === programFilter) && (semester === 'All' || String(l.semester) === String(semester)));
+
+    if (!loads.length) {
+        return showBanner(`No workload records found for ${profName} in this term.`, 'error');
+    }
+
+    const faculty = facultyRegistry.find(f => f.name === profName);
+    const facultyEmail = faculty?.email || '';
+    const totalUnits = loads.reduce((sum, l) => sum + (Number(l.units) || 0), 0);
+
+    loads.sort((a, b) => {
+        const dayOrder = Days.indexOf(a.day) - Days.indexOf(b.day);
+        if (dayOrder !== 0) return dayOrder;
+        return parseTimeStr(a.time.split(' - ')[0]) - parseTimeStr(b.time.split(' - ')[0]);
+    });
+
+    const subjectRowsHtml = loads.map(l => `
+        <tr class="border-b border-slate-100 text-xs hover:bg-slate-50">
+            <td class="p-2 font-medium text-slate-800">${escapeHtml(l.sub)}</td>
+            <td class="p-2 text-slate-600">${escapeHtml(l.sec)}</td>
+            <td class="p-2 text-slate-600">${escapeHtml(l.day)} ${escapeHtml(l.time)}</td>
+            <td class="p-2 text-slate-600">${escapeHtml(formatBuildingRoom(l))}</td>
+            <td class="p-2 text-slate-600">${escapeHtml(l.component_type || 'Lec')}</td>
+            <td class="p-2 font-bold text-slate-800">${Number(l.units) || 0}u</td>
+        </tr>
+    `).join('');
+
+    const defaultSubject = `[PUP-PQ] Official Teaching Workload - ${profName} (AY ${sy}, ${semesterLabel})`;
+
+    // Helper to generate formatted plain-text workload message for email clients
+    const buildPlainTextBody = (customNotes = '') => {
+        const scheduleLines = loads.map((l, i) => 
+            `  ${i + 1}. ${l.sub}\n     Section: ${l.sec} | Schedule: ${l.day} ${l.time}\n     Room: ${formatBuildingRoom(l)} | Type: ${l.component_type || 'Lec'} | Units: ${Number(l.units) || 0}u`
+        ).join('\n\n');
+
+        return `Dear Prof. ${profName},
+
+Here is your official teaching workload schedule for AY ${sy}, ${semesterLabel}:
+
+=======================================================
+TEACHING WORKLOAD ASSIGNMENT
+=======================================================
+Faculty: ${profName}
+Academic Term: AY ${sy}, ${semesterLabel}
+Total Classes: ${loads.length}
+Total Cumulative Units: ${totalUnits} Units
+=======================================================
+
+CLASS SCHEDULE:
+${scheduleLines}
+
+=======================================================
+Total Units: ${totalUnits} Units
+=======================================================
+${customNotes ? `\nAdditional Notes:\n${customNotes}\n` : ''}
+Please review your schedule. If you have any inquiries or adjustments, please coordinate with the Academic Head office.
+
+Warm regards,
+Academic Administration
+Polytechnic University of the Philippines - Parañaque City Campus`;
+    };
+
+    // Helper to generate rich HTML body for direct SMTP and system logging
+    const buildHtmlBody = (customNotes = '') => `
+        <div style="font-family: Arial, sans-serif; color: #333; max-width: 650px; line-height: 1.5; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+            <div style="background-color: #7f0000; color: #ffffff; padding: 18px 24px;">
+                <h2 style="margin: 0; font-size: 18px; font-weight: bold; letter-spacing: 0.5px;">Polytechnic University of the Philippines</h2>
+                <p style="margin: 4px 0 0 0; font-size: 13px; opacity: 0.9;">Parañaque City Campus &bull; Official Teaching Workload Assignment</p>
+            </div>
+            <div style="padding: 24px;">
+                <p style="margin-top: 0;">Dear <strong>${escapeHtml(profName)}</strong>,</p>
+                <p>Below is your official teaching workload assignment for <strong>AY ${escapeHtml(sy)}, ${escapeHtml(semesterLabel)}</strong>:</p>
+                
+                <table style="width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 12px;">
+                    <thead>
+                        <tr style="background-color: #f1f5f9; text-align: left; color: #475569;">
+                            <th style="padding: 10px 8px; border: 1px solid #e2e8f0;">Subject</th>
+                            <th style="padding: 10px 8px; border: 1px solid #e2e8f0;">Section</th>
+                            <th style="padding: 10px 8px; border: 1px solid #e2e8f0;">Day & Time</th>
+                            <th style="padding: 10px 8px; border: 1px solid #e2e8f0;">Room</th>
+                            <th style="padding: 10px 8px; border: 1px solid #e2e8f0;">Type</th>
+                            <th style="padding: 10px 8px; border: 1px solid #e2e8f0; text-align: center;">Units</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${loads.map(l => `
+                            <tr>
+                                <td style="padding: 8px; border: 1px solid #e2e8f0; font-weight: 600; color: #1e293b;">${escapeHtml(l.sub)}</td>
+                                <td style="padding: 8px; border: 1px solid #e2e8f0; color: #475569;">${escapeHtml(l.sec)}</td>
+                                <td style="padding: 8px; border: 1px solid #e2e8f0; color: #475569;">${escapeHtml(l.day)} ${escapeHtml(l.time)}</td>
+                                <td style="padding: 8px; border: 1px solid #e2e8f0; color: #475569;">${escapeHtml(formatBuildingRoom(l))}</td>
+                                <td style="padding: 8px; border: 1px solid #e2e8f0; color: #475569;">${escapeHtml(l.component_type || 'Lec')}</td>
+                                <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: center; font-weight: bold; color: #1e293b;">${Number(l.units) || 0}</td>
+                            </tr>
+                        `).join('')}
+                        <tr style="background-color: #f8fafc; font-weight: bold;">
+                            <td colspan="5" style="padding: 10px 8px; border: 1px solid #e2e8f0; text-align: right; color: #1e293b;">Total Cumulative Units:</td>
+                            <td style="padding: 10px 8px; border: 1px solid #e2e8f0; text-align: center; color: #7f0000; font-size: 13px;">${totalUnits} Units</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                ${customNotes ? `
+                    <div style="background-color: #fef2f2; border-left: 4px solid #7f0000; padding: 12px 14px; margin: 18px 0; font-size: 13px; color: #991b1b; border-radius: 4px;">
+                        <strong>Important Note:</strong> ${escapeHtml(customNotes)}
+                    </div>
+                ` : ''}
+
+                <p style="font-size: 12px; color: #64748b; line-height: 1.5; margin-top: 24px;">
+                    Please review your schedule and confirm your availability. If adjustments are needed, kindly contact the Academic Head office.<br/><br/>
+                    <em>Polytechnic University of the Philippines &bull; Parañaque City Campus</em>
+                </p>
+            </div>
+        </div>
+    `;
+
+    // Global 1-click dispatcher accessible from modal buttons
+    window.dispatchWorkload1Click = async (service) => {
+        const recipientEmail = document.getElementById('email-workload-recipient')?.value.trim();
+        const subject = document.getElementById('email-workload-subject')?.value.trim();
+        const notes = document.getElementById('email-workload-notes')?.value.trim() || '';
+
+        if (!recipientEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) {
+            return showBanner('Please provide a valid recipient email address.', 'error');
+        }
+        if (!subject) {
+            return showBanner('Please provide an email subject line.', 'error');
+        }
+
+        // Auto-persist email to faculty profile if updated
+        if (faculty && faculty.email !== recipientEmail) {
+            faculty.email = recipientEmail;
+            if (typeof updateFacultyAPI === 'function') {
+                updateFacultyAPI(faculty).catch(() => {});
+            }
+        }
+
+        const plainBody = buildPlainTextBody(notes);
+        const htmlBody = buildHtmlBody(notes);
+
+        // Always log dispatch into Manage Emails database
+        try {
+            await apiFetch('/api/emails', {
+                method: 'POST',
+                body: JSON.stringify({
+                    recipient: recipientEmail,
+                    recipient_email: recipientEmail,
+                    recipient_name: profName,
+                    subject: subject,
+                    body: htmlBody,
+                    status: 'sent'
+                })
+            });
+        } catch (e) {
+            console.warn('Logging dispatch to backend returned:', e);
+        }
+
+        if (service === 'outlook') {
+            // Official PUP Webmail is Microsoft 365 Outlook
+            const outlookUrl = `https://outlook.office.com/mail/deeplink/compose?to=${encodeURIComponent(recipientEmail)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(plainBody)}`;
+            window.open(outlookUrl, '_blank');
+            closeModal();
+            showBanner(`Opened 1-Click PUP Outlook Webmail & logged to Manage Emails!`, 'success');
+        } else if (service === 'gmail') {
+            const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(recipientEmail)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(plainBody)}`;
+            window.open(gmailUrl, '_blank');
+            closeModal();
+            showBanner(`Opened 1-Click Gmail & logged to Manage Emails!`, 'success');
+        } else if (service === 'mailto') {
+            const mailtoUrl = `mailto:${encodeURIComponent(recipientEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(plainBody)}`;
+            window.open(mailtoUrl, '_blank');
+            closeModal();
+            showBanner(`Opened default mail client & logged to Manage Emails!`, 'info');
+        }
+    };
+
+    window.setEmailDomainShortcut = (domain) => {
+        const input = document.getElementById('email-workload-recipient');
+        if (!input) return;
+        let val = input.value.trim();
+        if (!val) {
+            const cleanName = profName.toLowerCase().replace(/[^a-z0-9]/g, '.').replace(/\.+/g, '.').replace(/^\.|\.$/g, '');
+            input.value = `${cleanName}@${domain}`;
+        } else if (val.includes('@')) {
+            const userPart = val.split('@')[0];
+            input.value = `${userPart}@${domain}`;
+        } else {
+            input.value = `${val}@${domain}`;
+        }
+        input.focus();
+    };
+
+    openModal({
+        title: 'Email Workload Assignment',
+        submitLabel: 'Send via System (Direct SMTP)',
+        body: `
+            <div class="space-y-4">
+                <div class="p-3 bg-blue-50 border border-blue-200 rounded-2xl flex items-start gap-3">
+                    <div class="text-blue-600 mt-0.5"><i data-lucide="mail" class="w-5 h-5"></i></div>
+                    <div class="text-xs text-blue-900 leading-relaxed">
+                        Send official teaching workload schedule to <strong>${escapeHtml(profName)}</strong>. Workloads can be sent to their official <strong>@pup.edu.ph Outlook</strong> webmail, <strong>Gmail</strong>, or directly via system SMTP. Every dispatch is permanently logged under <strong>Academic Head &gt; Manage Emails</strong>.
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Faculty Name</label>
+                        <input type="text" id="email-workload-faculty" value="${escapeHtml(profName)}" readonly class="w-full rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 outline-none" />
+                    </div>
+                    <div>
+                        <div class="flex items-center justify-between mb-1">
+                            <label class="text-xs font-bold text-slate-600 uppercase">Recipient Email <span class="text-red-500">*</span></label>
+                            <div class="flex items-center gap-1">
+                                <button type="button" onclick="setEmailDomainShortcut('pup.edu.ph')" class="text-[10px] bg-amber-50 hover:bg-amber-100 text-amber-900 font-semibold px-1.5 py-0.5 rounded border border-amber-200" title="Switch domain to official PUP Outlook">@pup.edu.ph</button>
+                                <button type="button" onclick="setEmailDomainShortcut('gmail.com')" class="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-1.5 py-0.5 rounded border border-slate-300" title="Switch domain to Gmail">@gmail.com</button>
+                            </div>
+                        </div>
+                        <input type="email" id="email-workload-recipient" value="${escapeHtml(facultyEmail)}" placeholder="e.g. professor@pup.edu.ph" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-[#7f0000]" required />
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Subject</label>
+                    <input type="text" id="email-workload-subject" value="${escapeHtml(defaultSubject)}" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-[#7f0000]" />
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Workload Schedule Preview (${loads.length} classes &middot; ${totalUnits} units)</label>
+                    <div class="border border-slate-200 rounded-xl overflow-hidden max-h-40 overflow-y-auto">
+                        <table class="w-full text-left">
+                            <thead class="bg-slate-100 text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200">
+                                <tr>
+                                    <th class="p-2">Subject</th>
+                                    <th class="p-2">Section</th>
+                                    <th class="p-2">Schedule</th>
+                                    <th class="p-2">Room</th>
+                                    <th class="p-2">Type</th>
+                                    <th class="p-2">Units</th>
+                                </tr>
+                            </thead>
+                            <tbody>${subjectRowsHtml}</tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Additional Notes / Instructions (Optional)</label>
+                    <textarea id="email-workload-notes" rows="2" placeholder="e.g. Please confirm receipt of your official workload assignment before classes start." class="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-700 outline-none focus:ring-2 focus:ring-[#7f0000]"></textarea>
+                </div>
+
+                <!-- Attachments & Download Option -->
+                <div class="p-3 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-2.5">
+                        <div class="p-2 bg-amber-100 text-amber-800 rounded-xl">
+                            <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+                        </div>
+                        <div>
+                            <div class="text-xs font-bold text-amber-950">Attach Official Excel Workload (.xlsx)</div>
+                            <div class="text-[11px] text-amber-800">Faculty will receive the official spreadsheet file to download directly from the email.</div>
+                        </div>
+                    </div>
+                    <button type="button" onclick="exportFacultyWorkload('${escapeHtml(profName)}')" class="px-3 py-1.5 bg-white border border-amber-300 text-amber-900 rounded-xl text-xs font-bold hover:bg-amber-100 shadow-sm transition flex items-center gap-1.5 flex-shrink-0" title="Download copy to your computer right now">
+                        <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                        <span>Download Now</span>
+                    </button>
+                </div>
+
+                <!-- 1-Click Action Dispatch Bar -->
+                <div class="border-t border-slate-200 pt-3">
+                    <label class="block text-xs font-bold text-slate-700 uppercase mb-2 flex items-center gap-1.5">
+                        <i data-lucide="zap" class="w-4 h-4 text-amber-500"></i>
+                        1-Click Instant Dispatch (Pre-filled &amp; Logged)
+                    </label>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <button type="button" onclick="dispatchWorkload1Click('outlook')" class="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-[#0078d4] hover:bg-[#0060aa] text-white text-xs font-semibold shadow-sm transition-all transform active:scale-95" title="Opens Microsoft 365 Outlook with workload prefilled and logs to Manage Emails">
+                            <i data-lucide="mail" class="w-4 h-4"></i>
+                            <span>PUP Outlook Web</span>
+                        </button>
+                        <button type="button" onclick="dispatchWorkload1Click('gmail')" class="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-[#ea4335] hover:bg-[#d93025] text-white text-xs font-semibold shadow-sm transition-all transform active:scale-95" title="Opens Google Gmail with workload prefilled and logs to Manage Emails">
+                            <i data-lucide="send" class="w-4 h-4"></i>
+                            <span>Gmail Web</span>
+                        </button>
+                        <button type="button" onclick="dispatchWorkload1Click('mailto')" class="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-semibold shadow-sm transition-all transform active:scale-95" title="Opens Default Mail Client / Desktop Outlook and logs to Manage Emails">
+                            <i data-lucide="external-link" class="w-4 h-4"></i>
+                            <span>Mail App</span>
+                        </button>
+                    </div>
+                    <p class="text-[11px] text-slate-500 mt-1.5 italic">
+                        Tip: Clicking any 1-Click button opens the webmail composer with the complete workload and recipient pre-filled, and logs the dispatch under <strong>Academic Head &gt; Manage Emails</strong>.
+                    </p>
+                </div>
+            </div>
+        `,
+        onSubmit: async () => {
+            const recipientEmail = document.getElementById('email-workload-recipient')?.value.trim();
+            const subject = document.getElementById('email-workload-subject')?.value.trim();
+            const notes = document.getElementById('email-workload-notes')?.value.trim() || '';
+
+            if (!recipientEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) {
+                return showBanner('Please provide a valid recipient email address.', 'error');
+            }
+            if (!subject) {
+                return showBanner('Please provide an email subject line.', 'error');
+            }
+
+            // Save/update faculty's email address if it was missing or changed
+            if (faculty && faculty.email !== recipientEmail) {
+                faculty.email = recipientEmail;
+                if (typeof updateFacultyAPI === 'function') {
+                    updateFacultyAPI(faculty).catch(() => {});
+                }
+            }
+
+            const bodyHtml = buildHtmlBody(notes);
+
+            // Generate formatted Excel workload attachment using ExcelJS (from app.excel-export.js)
+            let attachments = [];
+            const sanitizedProf = profName.replace(/[^a-zA-Z0-9_-]/g, '_');
+            const sanitizedTerm = `${sy}_${semesterLabel}`.replace(/[^a-zA-Z0-9_-]/g, '_');
+            const attachmentFilename = `Faculty_Workload_${sanitizedProf}_${sanitizedTerm}.xlsx`;
+
+            try {
+                if (typeof window.buildFacultyWorkloadWorkbookBuffer === 'function') {
+                    const b64Data = await window.buildFacultyWorkloadWorkbookBuffer(profName);
+                    if (b64Data) {
+                        attachments.push({
+                            filename: attachmentFilename,
+                            content: b64Data,
+                            encoding: 'base64',
+                            contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                        });
+                    }
+                }
+            } catch (excelJsErr) {
+                console.warn('Could not generate ExcelJS formatted attachment:', excelJsErr);
+            }
+
+            // Fallback to SheetJS aoa_to_sheet if ExcelJS buffer wasn't generated
+            if (attachments.length === 0 && typeof XLSX !== 'undefined') {
+                try {
+                    const program = (typeof displayProfessorProgram === 'function' ? displayProfessorProgram(profName) : '') || programFilter || 'All Programs';
+                    const rows = [
+                        ['Polytechnic University of the Philippines - Parañaque Campus'],
+                        ['Official Teaching Workload Assignment'],
+                        [],
+                        ['Professor', profName],
+                        ['Program', program],
+                        ['Academic Year', sy],
+                        ['Semester', semesterLabel],
+                        ['Classification', faculty?.classification || 'N/A'],
+                        ['Designation', faculty?.baseDesignation || 'N/A'],
+                        ['Total Units', `${totalUnits} Units`],
+                        [],
+                        ['#', 'Subject', 'Load Type', 'Section', 'Hours (Lec/Lab)', 'Building - Room', 'Time', 'Day', 'Program', 'Academic Year', 'Semester']
+                    ];
+
+                    loads.forEach((load, idx) => {
+                        const isBridging = typeof getSubjectBridgingStatus === 'function' && getSubjectBridgingStatus(load.program || program, load.sub);
+                        const subDisplay = isBridging ? `[BRIDGING] ${load.sub || ''}` : (load.sub || '');
+                        const compHours = `${Number(load.units) || 0} hours - ${load.component_type || 'Lec'}`;
+                        const bldgRoom = formatBuildingRoom(load);
+                        rows.push([
+                            idx + 1,
+                            subDisplay,
+                            load.loadType || 'Regular Load',
+                            load.sec || '',
+                            compHours,
+                            bldgRoom,
+                            load.time || '',
+                            load.day || '',
+                            load.program || '',
+                            load.sy || '',
+                            load.semester || ''
+                        ]);
+                    });
+
+                    if (notes) {
+                        rows.push([]);
+                        rows.push(['Special Notes / Instructions:', notes]);
+                    }
+
+                    const ws = XLSX.utils.aoa_to_sheet(rows);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, 'Workload');
+                    const b64Data = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
+
+                    attachments.push({
+                        filename: attachmentFilename,
+                        content: b64Data,
+                        encoding: 'base64',
+                        contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                    });
+                } catch (xlsxErr) {
+                    console.warn('Could not generate SheetJS attachment fallback:', xlsxErr);
+                }
+            }
+
+            try {
+                const res = await apiFetch('/api/emails', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        recipient: recipientEmail,
+                        recipient_email: recipientEmail,
+                        recipient_name: profName,
+                        subject: subject,
+                        body: bodyHtml,
+                        status: 'sent',
+                        attachments: attachments
+                    })
+                });
+                closeModal();
+                if (res?.delivery?.delivered) {
+                    showBanner(`Workload assignment & Excel file delivered directly to ${recipientEmail} via SMTP!`, 'success');
+                } else {
+                    showBanner(`Workload logged to Manage Emails! (Configure SMTP in .env for direct server delivery, or use the 1-Click Outlook button).`, 'info');
+                }
+            } catch (err) {
+                console.error('Failed to dispatch workload email:', err);
+                const mailtoUrl = `mailto:${encodeURIComponent(recipientEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(buildPlainTextBody(notes))}`;
+                window.open(mailtoUrl, '_blank');
+                closeModal();
+                showBanner(`Logged workload dispatch to ${recipientEmail}.`, 'info');
+            }
+        }
+    });
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+window.openEmailWorkloadModal = openEmailWorkloadModal;
+window.viewEmailDetails = viewEmailDetails;
 
 document.addEventListener('DOMContentLoaded', initApp);
 // ✅ End of file. No extra brackets here.

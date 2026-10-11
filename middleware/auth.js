@@ -23,3 +23,11 @@ const verifyToken = (req, res, next) => {
 };
 
 module.exports = verifyToken;
+module.exports.requireAcademicHead = (req, res, next) => {
+    const role = String(req.user?.role || '').toLowerCase();
+    const username = String(req.user?.username || '').toLowerCase();
+    if (!role.includes('head') && !role.includes('academic head') && username !== 'head_pq') {
+        return res.status(403).json({ error: 'Academic Head approval is required for this action' });
+    }
+    return next();
+};

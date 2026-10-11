@@ -24,7 +24,6 @@
                             <p class="text-[10px] text-gray-200">Academic Management</p>
                         </div>
                     </div>
-                    <a href="index.html" class="text-gray-100 hover:text-gray-200 text-xs tracking-wide uppercase">LOGOUT</a>
                 </div>
                 <nav class="space-y-1 px-4 py-4 flex-shrink-0 overflow-y-auto custom-scrollbar">
                     <a href="dashboard.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
@@ -70,9 +69,12 @@
                 </nav>
             </div>
             
-            <div class="p-4 bg-[#710000] border-t border-[#660000] flex-shrink-0">
-                <p class="text-[11px] uppercase tracking-widest text-gray-300">User</p>
-                <p class="mt-1 font-semibold text-white">Academic Aide</p>
+            <div class="p-2.5 bg-[#710000] border-t border-[#660000] flex items-center justify-between gap-3 flex-shrink-0">
+                <div class="min-w-0">
+                    <p class="text-[9px] uppercase tracking-widest text-gray-300">ACADEMIC AIDE</p>
+                    <p class="mt-0.5 truncate text-sm font-semibold text-white">aide_pq</p>
+                </div>
+                <a href="index.html" class="flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide text-gray-100 hover:text-yellow-200">LOGOUT</a>
             </div>
         </aside>
 
@@ -96,11 +98,11 @@
                 <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div class="flex flex-wrap gap-4 items-center">
                         <div>
-                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Academic Year</label>
+                            <label for="sy-selector" class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Academic Year</label>
                             <select id="sy-selector" onchange="renderTimetable()" class="p-2.5 border rounded-xl w-40 text-sm bg-gray-50 outline-none font-semibold text-slate-700"></select>
                         </div>
                         <div>
-                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Semester</label>
+                            <label for="semester-selector" class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Semester</label>
                             <select id="semester-selector" onchange="renderTimetable()" class="p-2.5 border rounded-xl w-40 text-sm bg-gray-50 outline-none font-semibold text-slate-700">
                                 <option value="All">All Semesters</option>
                                 <option value="1">1st Semester</option>
@@ -109,13 +111,16 @@
                             </select>
                         </div>
                         <div>
-                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Select Section</label>
+                            <label for="view-section-select" class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Select Section</label>
                             <select id="view-section-select" onchange="renderTimetable()" class="p-2.5 border rounded-xl w-40 text-sm bg-gray-50 outline-none font-semibold text-slate-700"></select>
                         </div>
                     </div>
                     <div class="flex items-center gap-2">
                         <button onclick="exportSectionTimetable()" class="px-4 py-3 border-2 border-[#7f0000] text-[#7f0000] rounded-2xl text-xs font-bold hover:bg-[#fef2f2] flex items-center">
                             <i data-lucide="download-cloud" class="w-4 h-4 mr-2"></i>Export Section Schedule
+                        </button>
+                        <button onclick="exportAllSectionTimetables()" class="px-4 py-3 bg-[#7f0000] text-white rounded-2xl text-xs font-bold hover:bg-[#660000] flex items-center shadow-xs">
+                            <i data-lucide="layers" class="w-4 h-4 mr-2"></i>Export Section Schedule (All)
                         </button>
                         <button onclick="toggleCalendarFullscreen('sections')" class="w-10 h-10 rounded-2xl border border-slate-300 text-slate-700 hover:bg-slate-100 flex items-center justify-center">
                             <i data-lucide="maximize" class="w-4 h-4"></i>
@@ -129,6 +134,8 @@
 
     <script src="../JS/tempDatabase.js"></script>
     <script src="../JS/app.common.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+    <script src="../JS/app.excel-export.js"></script>
     <script src="../JS/app.page-section-timetables.js"></script>
 </body>
 </html>

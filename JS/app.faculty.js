@@ -49,7 +49,30 @@ function getProfessorLoadTotals(profName) {
     }, { total: 0, regular: 0, partTime: 0, substitute: 0 });
 }
 
-function toggleActiveStatusFromProfile(setActive) {
+async function handleFacultyToggleChange(isChecked) {
+    if (typeof setFacultyActiveStatus === 'function') {
+        const selectedId = document.getElementById('faculty-profile-select')?.value;
+        if (!selectedId) {
+            showBanner('Select a faculty profile first.', 'error');
+            const toggleInput = document.getElementById('faculty-status-toggle');
+            if (toggleInput) toggleInput.checked = false;
+            return;
+        }
+        await setFacultyActiveStatus(selectedId, isChecked);
+    }
+}
+
+async function toggleActiveStatusFromProfile(setActive) {
+    if (typeof setFacultyActiveStatus === 'function') {
+        const selectedId = document.getElementById('faculty-profile-select')?.value;
+        if (!selectedId) {
+            showBanner('Select a faculty profile to change status first.', 'error');
+            return;
+        }
+        await setFacultyActiveStatus(selectedId, setActive);
+        return;
+    }
+
     const selectedId = document.getElementById('faculty-profile-select')?.value;
     if (!selectedId) {
         showBanner('Select a faculty profile to change status first.', 'error');
@@ -59,6 +82,9 @@ function toggleActiveStatusFromProfile(setActive) {
     if (!faculty) return;
     faculty.active = Boolean(setActive);
     persistState();
+    if (typeof updateFacultyAPI === 'function') {
+        updateFacultyAPI(faculty);
+    }
     displaySelectedFacultyProfile();
     renderProgramResources();
     showBanner(`Faculty profile is now ${faculty.active ? 'Active' : 'Inactive'}.`, 'success');

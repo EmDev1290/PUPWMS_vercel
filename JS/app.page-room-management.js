@@ -36,7 +36,7 @@ function renderRoomsByBuilding() {
                     <i data-lucide="door-open" class="w-4 h-4 text-blue-600"></i>
                     <span class="text-sm font-semibold text-gray-900">${room.name}</span>
                 </div>
-                <button onclick="deleteRoom('New Building', ${idx})" class="text-red-600 hover:text-red-800 text-xs font-bold tracking-wider">DELETE</button>
+                <button onclick="deleteRoom('New Building', ${idx})" class="text-red-600 hover:text-red-800 text-xs font-bold tracking-wider">${isAcademicHeadUser() ? 'DELETE' : 'REQUEST DELETE'}</button>
             </div>
         `).join('')
         : '<div class="text-gray-500 italic text-sm p-3">No rooms added yet.</div>';
@@ -51,7 +51,7 @@ function renderRoomsByBuilding() {
                     <i data-lucide="door-open" class="w-4 h-4 text-amber-600"></i>
                     <span class="text-sm font-semibold text-gray-900">${room.name}</span>
                 </div>
-                <button onclick="deleteRoom('Main Building', ${idx})" class="text-red-600 hover:text-red-800 text-xs font-bold tracking-wider">DELETE</button>
+                <button onclick="deleteRoom('Main Building', ${idx})" class="text-red-600 hover:text-red-800 text-xs font-bold tracking-wider">${isAcademicHeadUser() ? 'DELETE' : 'REQUEST DELETE'}</button>
             </div>
         `).join('')
         : '<div class="text-gray-500 italic text-sm p-3">No rooms added yet.</div>';
@@ -77,7 +77,7 @@ function closeRoomModal() {
     currentEditingRoomId = null;
 }
 
-function saveRoom() {
+async function saveRoom() {
     const roomName = document.getElementById('room-name')?.value.trim();
     const building = document.getElementById('room-building')?.value;
 
@@ -98,6 +98,26 @@ function saveRoom() {
         return;
     }
 
+    if (!isAcademicHeadUser()) {
+        queueApprovalAction('room_add', { roomName, building });
+        closeRoomModal();
+        showBanner(`Room "${roomName}" is pending Academic Head approval.`, 'info');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/rooms', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ name: roomName, building })
+        });
+        if (!response.ok) throw new Error(await response.text() || 'Failed to save room');
+    } catch (error) {
+        console.error('Failed to save room:', error);
+        showBanner('The room could not be saved.', 'error');
+        return;
+    }
+
     // Add room
     State.db.rooms.push({
         name: roomName,
@@ -110,13 +130,32 @@ function saveRoom() {
     showBanner(`Room "${roomName}" added to ${building}!`, 'success');
 }
 
-function deleteRoom(building, index) {
+async function deleteRoom(building, index) {
     const roomsInBuilding = State.db.rooms.filter(r => r.building === building);
     if (index < 0 || index >= roomsInBuilding.length) return;
 
     const roomToDelete = roomsInBuilding[index];
     const confirmation = confirm(`Delete room "${roomToDelete.name}" from ${building}?`);
     if (!confirmation) return;
+
+    if (!isAcademicHeadUser()) {
+        queueApprovalAction('room_delete', { roomName: roomToDelete.name, building });
+        showBanner(`Deletion of room "${roomToDelete.name}" is pending Academic Head approval.`, 'info');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/rooms', {
+            method: 'DELETE',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ name: roomToDelete.name })
+        });
+        if (!response.ok) throw new Error(await response.text() || 'Failed to delete room');
+    } catch (error) {
+        console.error('Failed to delete room:', error);
+        showBanner('The room could not be deleted.', 'error');
+        return;
+    }
 
     // Remove from State.db.rooms
     State.db.rooms = State.db.rooms.filter(r => !(r.name === roomToDelete.name && r.building === building));

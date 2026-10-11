@@ -7,6 +7,7 @@ CREATE DATABASE IF NOT EXISTS `pup_workload`;
 USE `pup_workload`;
 
 -- 2. Drop existing tables if they exist
+DROP TABLE IF EXISTS `request_history`;
 DROP TABLE IF EXISTS `loads`;
 DROP TABLE IF EXISTS `program_subjects`;
 DROP TABLE IF EXISTS `program_sections`;
@@ -26,7 +27,8 @@ CREATE TABLE `users` (
     `username` VARCHAR(100) NOT NULL PRIMARY KEY,
     `password_hash` VARCHAR(255) NOT NULL,
     `role` VARCHAR(100) DEFAULT 'user',
-    `display_name` VARCHAR(100) DEFAULT 'Academic Aide'
+    `display_name` VARCHAR(100) DEFAULT 'Academic Aide',
+    `id_number` VARCHAR(100) DEFAULT 'TEMP-001'
 );
 
 CREATE TABLE `faculty` (
@@ -57,7 +59,8 @@ CREATE TABLE `faculty` (
     `nature_of_appointment` VARCHAR(100) DEFAULT '',
     `preferred_subjects` VARCHAR(255) DEFAULT '',
     `preferred_times` VARCHAR(255) DEFAULT '',
-    `remarks` VARCHAR(255) DEFAULT ''
+    `remarks` VARCHAR(255) DEFAULT '',
+    `email` VARCHAR(255) DEFAULT ''
 );
 
 CREATE TABLE `school_years` (
@@ -79,9 +82,12 @@ CREATE TABLE `program_subjects` (
     `id` INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     `program_name` VARCHAR(100) NOT NULL,
     `year_level` VARCHAR(50) NOT NULL,
-    `semester` VARCHAR(50) NOT NULL,
+    `semester` VARCHAR(50) NULL,
     `subject_name` VARCHAR(255) NOT NULL,
+    `lec_units` INT NOT NULL DEFAULT 0,
+    `lab_units` INT NOT NULL DEFAULT 0,
     `units` INT NOT NULL,
+    `is_bridging` TINYINT(1) NOT NULL DEFAULT 0,
     FOREIGN KEY (`program_name`) REFERENCES `programs` (`name`) ON DELETE CASCADE
 );
 
@@ -90,6 +96,7 @@ CREATE TABLE `loads` (
     `prof` VARCHAR(255) NOT NULL,
     `sub` VARCHAR(255) NOT NULL,
     `units` INT NOT NULL,
+    `component_type` ENUM('Lec', 'Lab', 'Lec/Lab') NOT NULL DEFAULT 'Lec',
     `load_type` VARCHAR(100) NOT NULL,
     `sec` VARCHAR(100) NOT NULL,
     `room` VARCHAR(100) NOT NULL,
@@ -103,94 +110,34 @@ CREATE TABLE `loads` (
     FOREIGN KEY (`program`) REFERENCES `programs` (`name`) ON DELETE CASCADE
 );
 
--- 4. Seed Data
-
--- Rooms
-INSERT INTO `rooms` (`name`, `building`) VALUES
-('Room A101', 'New Building'),
-('Room A102', 'New Building'),
-('Lab A', 'New Building'),
-('Audio Visual Room', 'New Building'),
-('Room B201', 'New Building'),
-('Room B202', 'New Building'),
-('Lab B', 'New Building');
-
--- Faculty Registry
-INSERT INTO `faculty` (
-    `id`, `name`, `base_designation`, `program`, `employment_type`, `classification`, `classification_rank`, `active`,
-    `baccalaureate`, `masters`, `doctorate`, `post_baccalaureate`, `license_number`, `specialization`, `national_certificate`,
-    `gen_ed`, `core_subject`, `professional_subject`, `technical_subject`,
-    `research_production`, `research_presentation`, `research_publication`, `research_citation`,
-    `extension`, `nature_of_appointment`, `remarks`
-) VALUES
-(
-    'prof-jefferson', 'Sir Jefferson', 'Instructor I', 'Information Technology', 'Regular', 'Designee', 'instructor', TRUE,
-    'BS Information Technology', 'MSc Computer Science', '', '', 'LIC-9134', 'Systems Analysis', 'NC II',
-    'Math', 'IT102', 'Software Engineering', 'Programming',
-    '2', '3', '1', '8',
-    'Community IT Training', 'Full-time', 'In good standing'
-),
-(
-    'prof-delacruz', 'Dr. Maria Dela Cruz', 'Head of Academic Affairs', 'Information Technology', 'Regular', 'Director', 'campus_director', TRUE,
-    'BS Computer Science', 'MEd Curriculum', 'PhD Educational Leadership', '', 'LIC-7201', 'Database Systems', 'NC III',
-    'English', 'DB Systems', 'Database Design', 'SQL Programming',
-    '4', '2', '2', '15',
-    'Research mentorship', 'Full-time', 'Academic leader'
-),
-(
-    'prof-santos', 'Prof. Ricardo Santos', 'Regular Lecturer', 'Computer Engineering', 'Regular', 'Regular', '', TRUE,
-    'BSE Computer Engineering', 'MEng Electronics', '', '', 'LIC-4485', 'Microprocessors', 'NC IV',
-    'Physics', 'Microprocessor Systems', 'Embedded Systems', 'Circuit Design',
-    '1', '1', '0', '2',
-    'Technical workshops', 'Full-time', 'Consistent instructor'
+CREATE TABLE `request_history` (
+    `id` VARCHAR(100) NOT NULL PRIMARY KEY,
+    `type` VARCHAR(100) NOT NULL,
+    `requested_by` VARCHAR(255) NOT NULL,
+    `requested_by_username` VARCHAR(100) DEFAULT '',
+    `remarks` TEXT DEFAULT '',
+    `summary` VARCHAR(255) DEFAULT '',
+    `status` VARCHAR(50) NOT NULL DEFAULT 'Pending',
+    `payload` LONGTEXT DEFAULT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
--- School Years
-INSERT INTO `school_years` (`name`) VALUES
-('A.Y. 2024-2025'),
-('A.Y. 2025-2026'),
-('A.Y. 2026-2027');
+CREATE TABLE IF NOT EXISTS `emails` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `recipient_email` VARCHAR(255) NOT NULL,
+    `recipient` VARCHAR(255) DEFAULT '',
+    `recipient_name` VARCHAR(255) DEFAULT '',
+    `subject` VARCHAR(255) NOT NULL,
+    `body` LONGTEXT DEFAULT NULL,
+    `status` VARCHAR(50) DEFAULT 'sent',
+    `sent_by` VARCHAR(100) DEFAULT 'Academic Head',
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
 
--- Programs
-INSERT INTO `programs` (`name`) VALUES
-('Information Technology'),
-('Computer Engineering'),
-('Hospitality Management');
-
--- Program Sections
-INSERT INTO `program_sections` (`program_name`, `section_name`) VALUES
-('Information Technology', 'BSIT 1-1'),
-('Information Technology', 'BSIT 2-1'),
-('Information Technology', 'BSIT 3-1'),
-('Computer Engineering', 'COE 3-1'),
-('Computer Engineering', 'COE 4-1'),
-('Hospitality Management', 'HM 1-1'),
-('Hospitality Management', 'HM 2-1');
-
--- Program Subjects
-INSERT INTO `program_subjects` (`program_name`, `year_level`, `semester`, `subject_name`, `units`) VALUES
-('Information Technology', '1st Year', '1st Semester', 'IT101 - Introduction to Computing', 3),
-('Information Technology', '1st Year', '1st Semester', 'PATHFIT 1 - Movement Competency Training', 2),
-('Information Technology', '1st Year', '2nd Semester', 'IT102 - Computer Programming 1', 3),
-('Information Technology', '1st Year', '2nd Semester', 'IT103 - Discrete Structures', 3),
-('Information Technology', '2nd Year', '1st Semester', 'IT201 - Data Structures and Algorithms', 3),
-('Information Technology', '2nd Year', '1st Semester', 'IT202 - Object-Oriented Programming', 3),
-('Information Technology', '2nd Year', '2nd Semester', 'IT203 - Web Systems and Technologies', 3),
-('Information Technology', '2nd Year', '2nd Semester', 'IT204 - Computer Architecture and Organization', 3),
-('Information Technology', '2nd Year', 'Summer Term', 'IT-INT1 - Industry Practicum 1', 2),
-('Information Technology', '3rd Year', '1st Semester', 'IT311 - Database Systems', 3),
-('Information Technology', '3rd Year', '1st Semester', 'IT312 - Software Engineering 1', 3),
-('Information Technology', '3rd Year', '2nd Semester', 'IT313 - Information Assurance and Security', 3),
-('Computer Engineering', '3rd Year', '1st Semester', 'COE311 - Digital Design', 4),
-('Computer Engineering', '3rd Year', '2nd Semester', 'COE221 - Electronics I', 3),
-('Computer Engineering', '4th Year', '1st Semester', 'COE412 - Microprocessor Systems', 4),
-('Hospitality Management', '1st Year', '1st Semester', 'HM101 - Food Service Management', 3),
-('Hospitality Management', '1st Year', '1st Semester', 'PATHFIT 1 - Movement Competency Training', 2);
-
--- Loads / Workloads
-INSERT INTO `loads` (`id`, `prof`, `sub`, `units`, `load_type`, `sec`, `room`, `building`, `day`, `time`, `sy`, `program`, `semester`) VALUES
-(1, 'Dr. Maria Dela Cruz', 'IT311 - Database Systems', 3, 'Regular Load', 'BSIT 2-1', 'Room A101', 'Main Building', 'Monday', '08:00 AM - 11:00 AM', 'A.Y. 2024-2025', 'Information Technology', '1'),
-(2, 'Prof. Ricardo Santos', 'COE412 - Microprocessor Systems', 4, 'Regular Load', 'COE 4-1', 'Room B202', 'New Building', 'Wednesday', '10:00 AM - 02:00 PM', 'A.Y. 2024-2025', 'Computer Engineering', '1');
+-- 4. Seed Data
+-- Temporary demo records intentionally left blank so the system starts empty and loads data from the real database only.
 
 -- Users
 INSERT INTO `users` (`username`, `password_hash`, `role`, `display_name`) VALUES

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -25,7 +25,6 @@
                             <p class="text-[10px] text-gray-200">Academic Management</p>
                         </div>
                     </div>
-                    <a href="index.html" class="text-gray-100 hover:text-gray-200 text-xs tracking-wide uppercase">LOGOUT</a>
                 </div>
                 <nav class="space-y-1 px-4 py-4 flex-shrink-0 overflow-y-auto custom-scrollbar">
                     <a href="dashboard.html" class="sidebar-item flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
@@ -69,9 +68,12 @@
                 <!-- Scrollable Active Programs Container -->
             </div>
             
-            <div class="p-4 bg-[#710000] border-t border-[#660000] flex-shrink-0">
-                <p class="text-[11px] uppercase tracking-widest text-gray-300">User</p>
-                <p class="mt-1 font-semibold text-white">Academic Aide</p>
+            <div class="p-2.5 bg-[#710000] border-t border-[#660000] flex items-center justify-between gap-3 flex-shrink-0">
+                <div class="min-w-0">
+                    <p class="text-[9px] uppercase tracking-widest text-gray-300">ACADEMIC AIDE</p>
+                    <p class="mt-0.5 truncate text-sm font-semibold text-white">aide_pq</p>
+                </div>
+                <a href="index.html" class="flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide text-gray-100 hover:text-yellow-200">LOGOUT</a>
             </div>
         </aside>
 
@@ -93,15 +95,15 @@
             <form id="new-faculty-form" class="space-y-6 mt-6 bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
                 <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">Full Name</label>
+                        <label for="new-faculty-name" class="block text-sm font-semibold text-gray-700 mb-2">Full Name</label>
                         <input id="new-faculty-name" type="text" placeholder="Enter full name" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
                     </div>
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">Designation / Academic Rank</label>
+                        <label for="new-faculty-designation" class="block text-sm font-semibold text-gray-700 mb-2">Designation / Academic Rank</label>
                         <input id="new-faculty-designation" type="text" placeholder="Instructor I, Head, Lecturer" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
                     </div>
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">Program Assignment (Ctrl+Click to select multiple)</label>
+                        <label for="new-faculty-program" class="block text-sm font-semibold text-gray-700 mb-2">Program Assignment (Ctrl+Click to select multiple)</label>
                         <select id="new-faculty-program" multiple class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 h-28">
                             <option value="Information Technology">Information Technology</option>
                             <option value="Computer Engineering">Computer Engineering</option>
@@ -111,7 +113,7 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">Employment Type</label>
+                        <label for="new-faculty-employment" class="block text-sm font-semibold text-gray-700 mb-2">Employment Type</label>
                         <select id="new-faculty-employment" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500">
                             <option>Regular</option>
                             <option>Part-Time</option>
@@ -120,7 +122,7 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">Classification</label>
+                        <label for="new-faculty-classification" class="block text-sm font-semibold text-gray-700 mb-2">Classification</label>
                         <select id="new-faculty-classification" onchange="updateClassificationRankSelect()" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="Designee">Designee</option>
                             <option value="Regular">Regular</option>
@@ -129,7 +131,7 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">Classification Rank</label>
+                        <label for="new-faculty-rank" class="block text-sm font-semibold text-gray-700 mb-2">Classification Rank</label>
                         <select id="new-faculty-rank" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="">Select Rank</option>
                         </select>
@@ -140,38 +142,38 @@
                     <div class="space-y-4">
                         <h3 class="text-base font-semibold text-gray-800">Educational Attainment</h3>
                         <div>
-                            <label class="block text-sm text-gray-700 mb-2">Baccalaureate</label>
+                            <label for="new-faculty-bacc" class="block text-sm text-gray-700 mb-2">Baccalaureate</label>
                             <input id="new-faculty-bacc" type="text" placeholder="e.g. BS Information Technology" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
                         </div>
                         <div>
-                            <label class="block text-sm text-gray-700 mb-2">Masters</label>
+                            <label for="new-faculty-master" class="block text-sm text-gray-700 mb-2">Masters</label>
                             <input id="new-faculty-master" type="text" placeholder="e.g. MCS" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
                         </div>
                         <div>
-                            <label class="block text-sm text-gray-700 mb-2">Doctorate</label>
+                            <label for="new-faculty-doctorate" class="block text-sm text-gray-700 mb-2">Doctorate</label>
                             <input id="new-faculty-doctorate" type="text" placeholder="e.g. PhD Education" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
                         </div>
                         <div>
-                            <label class="block text-sm text-gray-700 mb-2">Post-Baccalaureate</label>
+                            <label for="new-faculty-postbac" class="block text-sm text-gray-700 mb-2">Post-Baccalaureate</label>
                             <input id="new-faculty-postbac" type="text" placeholder="e.g. Diploma in Teaching" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
                         </div>
                     </div>
                     <div class="space-y-4">
                         <h3 class="text-base font-semibold text-gray-800">Qualifications</h3>
                         <div>
-                            <label class="block text-sm text-gray-700 mb-2">License No.</label>
+                            <label for="new-faculty-license" class="block text-sm text-gray-700 mb-2">License No.</label>
                             <input id="new-faculty-license" type="text" placeholder="Enter license number" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
                         </div>
                         <div>
-                            <label class="block text-sm text-gray-700 mb-2">Specialization</label>
+                            <label for="new-faculty-specialization" class="block text-sm text-gray-700 mb-2">Specialization</label>
                             <input id="new-faculty-specialization" type="text" placeholder="e.g. Database Systems" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
                         </div>
                         <div>
-                            <label class="block text-sm text-gray-700 mb-2">National Certificate (NC)</label>
+                            <label for="new-faculty-nc" class="block text-sm text-gray-700 mb-2">National Certificate (NC)</label>
                             <input id="new-faculty-nc" type="text" placeholder="e.g. NC II" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
                         </div>
                         <div>
-                            <label class="block text-sm text-gray-700 mb-2">Course Handle (GEN-ED)</label>
+                            <label for="new-faculty-gened" class="block text-sm text-gray-700 mb-2">Course Handle (GEN-ED)</label>
                             <input id="new-faculty-gened" type="text" placeholder="e.g. Math" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
                         </div>
                     </div>
@@ -180,33 +182,33 @@
                 <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-sm text-gray-700 mb-2">Core Subject</label>
+                            <label for="new-faculty-core" class="block text-sm text-gray-700 mb-2">Core Subject</label>
                             <input id="new-faculty-core" type="text" placeholder="e.g. Database Management" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
                         </div>
                         <div>
-                            <label class="block text-sm text-gray-700 mb-2">Professional Subject</label>
+                            <label for="new-faculty-professional" class="block text-sm text-gray-700 mb-2">Professional Subject</label>
                             <input id="new-faculty-professional" type="text" placeholder="e.g. Systems Analysis" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
                         </div>
                         <div>
-                            <label class="block text-sm text-gray-700 mb-2">Technical Subject</label>
+                            <label for="new-faculty-technical" class="block text-sm text-gray-700 mb-2">Technical Subject</label>
                             <input id="new-faculty-technical" type="text" placeholder="e.g. Programming" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
                         </div>
                     </div>
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-sm text-gray-700 mb-2">Research Production</label>
+                            <label for="new-faculty-production" class="block text-sm text-gray-700 mb-2">Research Production</label>
                             <input id="new-faculty-production" type="text" placeholder="Number of productions" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
                         </div>
                         <div>
-                            <label class="block text-sm text-gray-700 mb-2">Research Presentation</label>
+                            <label for="new-faculty-presentation" class="block text-sm text-gray-700 mb-2">Research Presentation</label>
                             <input id="new-faculty-presentation" type="text" placeholder="Number of presentations" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
                         </div>
                         <div>
-                            <label class="block text-sm text-gray-700 mb-2">Research Publication</label>
+                            <label for="new-faculty-publication" class="block text-sm text-gray-700 mb-2">Research Publication</label>
                             <input id="new-faculty-publication" type="text" placeholder="Number of publications" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
                         </div>
                         <div>
-                            <label class="block text-sm text-gray-700 mb-2">Research Citation</label>
+                            <label for="new-faculty-citation" class="block text-sm text-gray-700 mb-2">Research Citation</label>
                             <input id="new-faculty-citation" type="text" placeholder="Number of citations" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
                         </div>
                     </div>
@@ -214,38 +216,44 @@
 
                 <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
                     <div>
-                        <label class="block text-sm text-gray-700 mb-2">Extension</label>
+                        <label for="new-faculty-extension" class="block text-sm text-gray-700 mb-2">Extension</label>
                         <input id="new-faculty-extension" type="text" placeholder="e.g. Community training" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
                     </div>
                     <div>
-                        <label class="block text-sm text-gray-700 mb-2">Nature of Appointment</label>
+                        <label for="new-faculty-nature" class="block text-sm text-gray-700 mb-2">Nature of Appointment</label>
                         <input id="new-faculty-nature" type="text" placeholder="e.g. Full-time" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
                     </div>
                     <div>
-                        <label class="block text-sm text-gray-700 mb-2">Remarks</label>
+                        <label for="new-faculty-remarks" class="block text-sm text-gray-700 mb-2">Remarks</label>
                         <input id="new-faculty-remarks" type="text" placeholder="e.g. Active" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                    <div>
+                        <label for="new-faculty-email" class="block text-sm text-gray-700 mb-2">Faculty Email</label>
+                        <input id="new-faculty-email" type="email" placeholder="e.g. faculty@pup.edu.ph" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
                     </div>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
                     <div>
-                        <label class="block text-sm text-gray-700 mb-2">Preferred Subjects</label>
+                        <label for="new-faculty-pref-subjects" class="block text-sm text-gray-700 mb-2">Preferred Subjects</label>
                         <select id="new-faculty-pref-subjects" multiple size="5" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500">
                         </select>
                         <p class="text-xs text-slate-500 mt-2">Hold Ctrl/Cmd to select multiple subjects.</p>
                     </div>
                     <div class="grid grid-cols-1 gap-4">
                         <div>
-                            <label class="block text-sm text-gray-700 mb-2">Preferred Day</label>
+                            <label for="new-faculty-pref-day" class="block text-sm text-gray-700 mb-2">Preferred Day</label>
                             <select id="new-faculty-pref-day" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500">
                             </select>
                         </div>
                         <div>
-                            <label class="block text-sm text-gray-700 mb-2">Preferred Time</label>
-                            <select id="new-faculty-pref-times" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500">
-                            </select>
+                            <div class="flex items-center justify-between mb-2">
+                                <label class="block text-sm text-gray-700">Preferred Time (30-min intervals)</label>
+                                <span class="text-[11px] text-slate-400">Select slots to merge</span>
+                            </div>
+                            <div id="new-faculty-pref-intervals" class="grid grid-cols-2 gap-1.5 max-h-48 overflow-y-auto p-2 bg-slate-50 border border-slate-200 rounded-xl"></div>
                         </div>
-                        <button type="button" id="new-faculty-pref-time-add" class="w-full rounded-2xl bg-[#7f0000] px-4 py-3 text-sm font-bold text-white hover:bg-red-900 transition">Add Preferred Time</button>
+                        <button type="button" id="new-faculty-pref-time-add" class="w-full rounded-2xl bg-[#7f0000] px-4 py-3 text-sm font-bold text-white hover:bg-red-900 transition">Save Preferred Time</button>
                     </div>
                 </div>
                 <div class="mt-4">
@@ -254,7 +262,7 @@
                 </div>
 
                 <div class="pt-4">
-                    <button type="button" onclick="saveNewFacultyProfile()" class="w-full rounded-3xl bg-[#7f0000] px-6 py-3 text-sm font-bold text-white hover:bg-red-900 transition">Save Faculty Profile</button>
+                    <button id="save-faculty-profile-button" type="button" onclick="saveNewFacultyProfile()" class="w-full rounded-3xl bg-[#7f0000] px-6 py-3 text-sm font-bold text-white hover:bg-red-900 transition">Save Faculty Profile</button>
                 </div>
             </form>
         </main>

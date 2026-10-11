@@ -18,6 +18,10 @@ app.use('/Frontend', express.static(path.join(__dirname, 'Frontend')));
 app.use('/JS', express.static(path.join(__dirname, 'JS')));
 app.use('/style', express.static(path.join(__dirname, 'style')));
 
+app.get('/favicon.ico', (req, res) => {
+    res.sendFile(path.join(__dirname, 'style', 'PUP LOGO.png'));
+});
+
 // Serve all Frontend HTML pages at root level (so relative JS redirects work)
 const frontendPages = [
     'index.html',

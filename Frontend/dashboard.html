@@ -7,7 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../style/style.css">
+    <link rel="stylesheet" href="../style/style.css?v=20261011-db-analytics">
 </head>
 <body class="bg-gray-50 text-gray-800">
     <div class="flex h-screen overflow-hidden">
@@ -23,10 +23,9 @@
                             <p class="text-[10px] text-gray-200">Academic Management</p>
                         </div>
                     </div>
-                    <a href="index.html" class="text-gray-100 hover:text-gray-200 text-xs tracking-wide uppercase">LOGOUT</a>
                 </div>
                 <nav class="space-y-1 px-4 py-4 flex-shrink-0 overflow-y-auto">
-                    <a href="dashboard.html" class="sidebar-item active-nav flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
+                    <a id="sidebar-dashboard-item" href="dashboard.html" class="sidebar-item active-nav flex items-center px-4 py-3 text-sm rounded-lg transition-all space-x-3 text-gray-100 hover:text-white">
                         <i data-lucide="grid" class="w-4 h-4 text-yellow-300"></i>
                         <span>Dashboard</span>
                     </a>
@@ -68,13 +67,17 @@
                     </a>
                 </nav>
             </div>
-            <div class="p-4 bg-[#710000] border-t border-[#660000]">
-                <p class="text-[11px] uppercase tracking-widest text-gray-300">User</p>
-                <p class="mt-1 font-semibold text-white">Academic Aide</p>
+            <div class="p-2.5 bg-[#710000] border-t border-[#660000] flex items-center justify-between gap-3">
+                <div class="min-w-0">
+                    <p class="text-[9px] uppercase tracking-widest text-gray-300">ACADEMIC AIDE</p>
+                    <p class="mt-0.5 truncate text-sm font-semibold text-white">aide_pq</p>
+                </div>
+                <a href="index.html" class="flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide text-gray-100 hover:text-yellow-200">LOGOUT</a>
             </div>
         </aside>
         <main class="flex-1 overflow-y-auto p-8 custom-scrollbar bg-slate-50">
-            <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+            <div id="dashboard-main-content">
+                <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
                 <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div>
                         <p class="text-xs uppercase tracking-widest text-slate-400 mb-2">Welcome Back,</p>
@@ -85,6 +88,14 @@
                         </p>
                     </div>
                     <div class="flex items-center gap-3">
+                        <button id="changes-for-approval-button" type="button" onclick="openApprovalQueueModal()" class="hidden inline-flex items-center gap-2 rounded-full border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800 shadow-sm transition hover:bg-amber-100">
+                            <i data-lucide="check-check" class="w-4 h-4"></i>
+                            <span>Changes for Approval</span>
+                        </button>
+                        <button id="request-history-button" type="button" onclick="openApprovalHistoryModal()" class="hidden inline-flex items-center gap-2 rounded-full border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-800 shadow-sm transition hover:bg-blue-100">
+                            <i data-lucide="history" class="w-4 h-4"></i>
+                            <span>Request History</span>
+                        </button>
                         <button id="dashboard-analytics-toggle" type="button" class="inline-flex items-center gap-2 rounded-full bg-[#7f0000] px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-[#5f0000]">
                             <i data-lucide="bar-chart-3" class="w-4 h-4"></i>
                             <span>Analytics</span>
@@ -97,7 +108,9 @@
                 </div>
             </div>
 
-            <div id="dashboard-analytics-panel" class="hidden mt-6 rounded-3xl bg-slate-900 p-6 text-white shadow-lg">
+            </div>
+
+            <div id="dashboard-analytics-panel" class="hidden analytics-full-panel rounded-3xl bg-slate-900 p-6 text-white shadow-lg">
                 <div class="flex items-center justify-between gap-3">
                     <div>
                         <p class="text-xs uppercase tracking-[0.2em] text-slate-300">Analytics Overview</p>
@@ -114,15 +127,15 @@
                         <p id="analytics-total-faculty" class="mt-3 text-3xl font-bold text-white">0</p>
                     </div>
                     <div class="rounded-2xl bg-slate-800 p-4 border border-slate-700">
-                        <p class="text-xs uppercase tracking-widest text-slate-400">Active</p>
+                        <p class="text-xs uppercase tracking-widest text-slate-400">Regular Faculty</p>
                         <p id="analytics-active-faculty" class="mt-3 text-3xl font-bold text-emerald-400">0</p>
                     </div>
                     <div class="rounded-2xl bg-slate-800 p-4 border border-slate-700">
-                        <p class="text-xs uppercase tracking-widest text-slate-400">Inactive</p>
+                        <p class="text-xs uppercase tracking-widest text-slate-400">Part Time Faculty</p>
                         <p id="analytics-inactive-faculty" class="mt-3 text-3xl font-bold text-amber-300">0</p>
                     </div>
                     <div class="rounded-2xl bg-slate-800 p-4 border border-slate-700">
-                        <p class="text-xs uppercase tracking-widest text-slate-400">Programs</p>
+                        <p class="text-xs uppercase tracking-widest text-slate-400">Course/Subjects</p>
                         <p id="analytics-active-programs" class="mt-3 text-3xl font-bold text-blue-300">0</p>
                     </div>
                     <div class="rounded-2xl bg-slate-800 p-4 border border-slate-700">
@@ -133,67 +146,155 @@
 
                 <div class="mt-6">
                     <h4 class="text-sm font-semibold uppercase tracking-widest text-slate-300">Program Summary</h4>
-                    <div id="dashboard-analytics-programs" class="mt-3 grid gap-3 md:grid-cols-2"></div>
+                    <div id="dashboard-analytics-programs" class="mt-3 grid grid-cols-1 gap-3"></div>
                 </div>
 
-                <div class="mt-8 grid gap-6 xl:grid-cols-2">
+                <div class="mt-6 rounded-2xl border border-slate-700 bg-slate-800 p-4">
+                    <h4 class="text-lg font-bold tracking-wide text-white">Overall Data Summary</h4>
+                    <p class="mt-1 text-xs uppercase tracking-widest text-slate-400">Analytics Overview</p>
+                    <p id="analytics-overall-summary" class="mt-3 text-sm leading-6 text-slate-300">Analytics summary will appear here.</p>
+                </div>
+
+                <div class="mt-8 grid grid-cols-1 gap-6">
                     <div class="rounded-2xl border border-slate-700 bg-slate-800 p-4">
                         <p class="text-sm font-semibold uppercase tracking-widest text-slate-300">Faculty per Program</p>
-                        <canvas id="dashboard-program-faculty-chart" class="mt-4 h-64 w-full"></canvas>
+                        <p class="analytics-overview-heading">Graph Overview</p>
+                        <p id="analytics-faculty-overview" class="mt-2 text-xs leading-5 text-slate-400"></p>
+                        <div class="relative mt-4 w-full overflow-hidden" style="height: 280px; min-height: 280px; max-height: 280px;">
+                            <canvas id="dashboard-program-faculty-chart" style="display: block; width: 100%; height: 280px; max-height: 280px;"></canvas>
+                        </div>
+                        <p class="analytics-legend-heading">Data Shown</p>
+                        <div id="analytics-faculty-data-legend" class="analytics-dataset-legend"></div>
+                        <p class="analytics-legend-heading">Program Legend</p>
+                        <div id="analytics-faculty-legend" class="analytics-data-legend text-slate-400"></div>
                     </div>
                     <div class="rounded-2xl border border-slate-700 bg-slate-800 p-4">
                         <p class="text-sm font-semibold uppercase tracking-widest text-slate-300">Courses per Program</p>
-                        <canvas id="dashboard-program-courses-chart" class="mt-4 h-64 w-full"></canvas>
+                        <p class="analytics-overview-heading">Graph Overview</p>
+                        <p id="analytics-courses-overview" class="mt-2 text-xs leading-5 text-slate-400"></p>
+                        <div class="relative mt-4 w-full overflow-hidden" style="height: 280px; min-height: 280px; max-height: 280px;">
+                            <canvas id="dashboard-program-courses-chart" style="display: block; width: 100%; height: 280px; max-height: 280px;"></canvas>
+                        </div>
+                        <p class="analytics-legend-heading">Data Shown</p>
+                        <div id="analytics-courses-data-legend" class="analytics-dataset-legend"></div>
+                        <p class="analytics-legend-heading">Program Legend</p>
+                        <div id="analytics-courses-legend" class="analytics-data-legend text-slate-400"></div>
                     </div>
                     <div class="rounded-2xl border border-slate-700 bg-slate-800 p-4">
                         <p class="text-sm font-semibold uppercase tracking-widest text-slate-300">Current Sections per Program</p>
-                        <canvas id="dashboard-program-sections-chart" class="mt-4 h-64 w-full"></canvas>
+                        <p class="analytics-overview-heading">Graph Overview</p>
+                        <p id="analytics-sections-overview" class="mt-2 text-xs leading-5 text-slate-400"></p>
+                        <div class="relative mt-4 w-full overflow-hidden" style="height: 280px; min-height: 280px; max-height: 280px;">
+                            <canvas id="dashboard-program-sections-chart" style="display: block; width: 100%; height: 280px; max-height: 280px;"></canvas>
+                        </div>
+                        <p class="analytics-legend-heading">Data Shown</p>
+                        <div id="analytics-sections-data-legend" class="analytics-dataset-legend"></div>
+                        <p class="analytics-legend-heading">Program Legend</p>
+                        <div id="analytics-sections-legend" class="analytics-data-legend text-slate-400"></div>
                     </div>
                     <div class="rounded-2xl border border-slate-700 bg-slate-800 p-4">
                         <p class="text-sm font-semibold uppercase tracking-widest text-slate-300">Employment Type per Program</p>
-                        <canvas id="dashboard-program-employment-chart" class="mt-4 h-64 w-full"></canvas>
+                        <p class="analytics-overview-heading">Graph Overview</p>
+                        <p id="analytics-employment-overview" class="mt-2 text-xs leading-5 text-slate-400"></p>
+                        <div class="relative mt-4 w-full overflow-hidden" style="height: 280px; min-height: 280px; max-height: 280px;">
+                            <canvas id="dashboard-program-employment-chart" style="display: block; width: 100%; height: 280px; max-height: 280px;"></canvas>
+                        </div>
+                        <p class="analytics-legend-heading">Data Shown</p>
+                        <div id="analytics-employment-data-legend" class="analytics-dataset-legend"></div>
+                        <p class="analytics-legend-heading">Program Legend</p>
+                        <div id="analytics-employment-legend" class="analytics-data-legend text-slate-400"></div>
                     </div>
                 </div>
 
-                <div class="mt-8 grid gap-6 xl:grid-cols-2">
-                    <div class="rounded-2xl border border-slate-700 bg-slate-800 p-4">
+                <div class="mt-8 grid grid-cols-1 gap-6">
+                    <div class="rounded-2xl border border-slate-700 bg-slate-800 p-4 analytics-wide-chart">
                         <p class="text-sm font-semibold uppercase tracking-widest text-slate-300">Educational Attainment per Program</p>
-                        <canvas id="dashboard-program-education-chart" class="mt-4 h-72 w-full"></canvas>
+                        <p class="analytics-overview-heading">Graph Overview</p>
+                        <p id="analytics-education-overview" class="mt-2 text-xs leading-5 text-slate-400"></p>
+                        <div class="relative mt-4 w-full overflow-hidden" style="height: 320px; min-height: 320px; max-height: 320px;">
+                            <canvas id="dashboard-program-education-chart" style="display: block; width: 100%; height: 320px; max-height: 320px;"></canvas>
+                        </div>
+                        <p class="analytics-legend-heading">Data Shown</p>
+                        <div id="analytics-education-data-legend" class="analytics-dataset-legend"></div>
+                        <p class="analytics-legend-heading">Program Legend</p>
+                        <div id="analytics-education-legend" class="analytics-data-legend text-slate-400"></div>
+                    </div>
+                </div>
+
+                <div class="mt-8 grid grid-cols-1 gap-6">
+                    <div class="rounded-2xl border border-slate-700 bg-slate-800 p-4">
+                        <p class="text-sm font-semibold uppercase tracking-widest text-slate-300">Assigned Units per Program</p>
+                        <p class="analytics-overview-heading">Graph Overview</p>
+                        <p id="analytics-units-overview" class="mt-2 text-xs leading-5 text-slate-400"></p>
+                        <div class="relative mt-4 w-full overflow-hidden" style="height: 280px; min-height: 280px; max-height: 280px;">
+                            <canvas id="dashboard-program-units-chart" style="display: block; width: 100%; height: 280px; max-height: 280px;"></canvas>
+                        </div>
+                        <p class="analytics-legend-heading">Data Shown</p>
+                        <div id="analytics-units-data-legend" class="analytics-dataset-legend"></div>
+                        <p class="analytics-legend-heading">Program Legend</p>
+                        <div id="analytics-units-legend" class="analytics-data-legend text-slate-400"></div>
                     </div>
                     <div class="rounded-2xl border border-slate-700 bg-slate-800 p-4">
-                        <p class="text-sm font-semibold uppercase tracking-widest text-slate-300">Research Output per Program</p>
-                        <canvas id="dashboard-program-research-chart" class="mt-4 h-72 w-full"></canvas>
+                        <p class="text-sm font-semibold uppercase tracking-widest text-slate-300">Scheduled Loads by Building</p>
+                        <p class="analytics-overview-heading">Graph Overview</p>
+                        <p id="analytics-building-overview" class="mt-2 text-xs leading-5 text-slate-400"></p>
+                        <div class="relative mt-4 w-full overflow-hidden" style="height: 280px; min-height: 280px; max-height: 280px;">
+                            <canvas id="dashboard-building-loads-chart" style="display: block; width: 100%; height: 280px; max-height: 280px;"></canvas>
+                        </div>
+                        <p class="analytics-legend-heading">Data Shown</p>
+                        <div id="analytics-building-data-legend" class="analytics-dataset-legend"></div>
+                        <p class="analytics-legend-heading">Building Legend</p>
+                        <div id="analytics-building-legend" class="analytics-data-legend text-slate-400"></div>
                     </div>
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mt-6">
-    <!-- Faculty Total Card -->
-    <div id="card-faculty-total" class="rounded-3xl bg-white p-5 shadow-sm border border-gray-100 transition duration-200 cursor-pointer flex flex-col items-center">
-        <i data-lucide="users" class="w-6 h-6 text-maroon-800"></i>
-        <p class="text-xs uppercase tracking-widest text-slate-400 mt-2">Faculty</p>
-        <p id="card-total-faculty" class="mt-4 text-4xl font-bold text-gray-900">0</p>
-    </div>
-                <div class="rounded-3xl bg-white p-5 shadow-sm border border-gray-100 transition duration-200 cursor-pointer flex flex-col items-center">
-                    <i data-lucide="users" class="w-6 h-6 text-emerald-600"></i>
-                    <p class="text-xs uppercase tracking-widest text-slate-400 mt-2">Active Faculty</p>
-                    <p id="card-active-faculty" class="mt-4 text-4xl font-bold text-gray-900">0</p>
+            <div id="dashboard-main-cards" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 mt-6">
+                <div id="card-faculty-total" class="rounded-3xl bg-white p-5 shadow-sm border border-gray-100 transition duration-200 cursor-pointer">
+                    <p class="text-xs uppercase tracking-widest text-slate-400">Faculty</p>
+                    <p id="card-total-faculty" class="mt-6 text-4xl font-bold text-gray-900">0</p>
                 </div>
-                <div class="rounded-3xl bg-white p-5 shadow-sm border border-gray-100 transition duration-200 cursor-pointer flex flex-col items-center">
-    <p class="text-xs uppercase tracking-widest text-slate-400">Inactive Faculty</p>
-    <p id="card-inactive-faculty" class="mt-6 text-4xl font-bold text-gray-900">0</p>
-</div>
-<div class="rounded-3xl bg-white p-5 shadow-sm border border-gray-100">
+                <div class="rounded-3xl bg-white p-5 shadow-sm border border-gray-100 transition duration-200 cursor-pointer">
+                    <p class="text-xs uppercase tracking-widest text-slate-400">Active Faculty</p>
+                    <p id="card-active-faculty" class="mt-6 text-4xl font-bold text-gray-900">0</p>
+                </div>
+                <div class="rounded-3xl bg-white p-5 shadow-sm border border-gray-100 transition duration-200 cursor-pointer">
+                    <p class="text-xs uppercase tracking-widest text-slate-400">Inactive Faculty</p>
+                    <p id="card-inactive-faculty" class="mt-6 text-4xl font-bold text-gray-900">0</p>
+                </div>
+                <div class="rounded-3xl bg-white p-5 shadow-sm border border-gray-100">
                     <p class="text-xs uppercase tracking-widest text-slate-400">Active Programs</p>
                     <p id="card-active-programs" class="mt-6 text-4xl font-bold text-gray-900">0</p>
                 </div>
                 <div class="rounded-3xl bg-white p-5 shadow-sm border border-gray-100">
-                    <p class="text-xs uppercase tracking-widest text-slate-400">Assigned Loads</p>
-                    <p id="card-assigned-loads" class="mt-6 text-4xl font-bold text-gray-900">0</p>
+                    <p class="text-xs uppercase tracking-widest text-slate-400">New Building Facilities</p>
+                    <p id="card-new-building-facilities" class="mt-6 text-4xl font-bold text-gray-900">0</p>
                 </div>
                 <div class="rounded-3xl bg-white p-5 shadow-sm border border-gray-100">
-                    <p class="text-xs uppercase tracking-widest text-slate-400">Conflicts Detected</p>
-                    <p id="card-conflicts-detected" class="mt-6 text-4xl font-bold text-emerald-600">0</p>
+                    <p class="text-xs uppercase tracking-widest text-slate-400">Old Building Facilities</p>
+                    <p id="card-old-building-facilities" class="mt-6 text-4xl font-bold text-gray-900">0</p>
+                </div>
+                <div class="rounded-3xl bg-white p-5 shadow-sm border border-gray-100">
+                    <p class="text-xs uppercase tracking-widest text-slate-400">Total Sections</p>
+                    <p id="card-total-sections" class="mt-6 text-4xl font-bold text-gray-900">0</p>
+                </div>
+                <div id="card-assigned-units-trigger" class="rounded-3xl bg-white p-5 shadow-sm border border-gray-100 cursor-pointer transition hover:-translate-y-0.5 hover:shadow-md" role="button" tabindex="0" title="View faculty and section loading gaps">
+                    <div class="flex items-center justify-between gap-2">
+                        <p class="text-xs uppercase tracking-widest text-slate-400">Assigned Units</p>
+                        <span id="card-assigned-units-percent" class="text-sm font-bold text-blue-600">0%</span>
+                    </div>
+                    <p id="card-assigned-units" class="mt-4 text-4xl font-bold text-blue-600">0</p>
+                    <div class="mt-4 h-2.5 w-full overflow-hidden rounded-full bg-slate-200" aria-label="Assigned units completion">
+                        <div id="card-assigned-units-battery" class="h-full rounded-full bg-blue-500 transition-all" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="rounded-3xl bg-white p-5 shadow-sm border border-gray-100">
+                    <p class="text-xs uppercase tracking-widest text-slate-400">Scheduling Conflicts</p>
+                    <p id="card-scheduling-conflicts" class="mt-6 text-4xl font-bold text-red-600">0</p>
+                </div>
+                <div class="rounded-3xl bg-white p-5 shadow-sm border border-gray-100">
+                    <p class="text-xs uppercase tracking-widest text-slate-400">Overloaded Faculty</p>
+                    <p id="card-overloaded-faculty" class="mt-6 text-4xl font-bold text-orange-600">0</p>
                 </div>
             </div>
         
@@ -210,12 +311,34 @@
             <div id="facultyList" class="mt-4"></div>
         </div>
     </div>
+    <div id="assigned-units-modal" class="fixed inset-0 hidden bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-3xl shadow-xl w-full max-w-6xl max-h-[90vh] overflow-y-auto p-6">
+            <div class="flex items-center justify-between gap-4 mb-6">
+                <div>
+                    <p class="text-xs uppercase tracking-widest text-slate-400">Loading Tracker</p>
+                    <h2 class="text-2xl font-bold text-gray-900">Faculty and Section Loading Gaps</h2>
+                    <p id="assigned-units-modal-context" class="text-sm text-gray-500 mt-1"></p>
+                </div>
+                <button id="assigned-units-modal-close" type="button" class="text-gray-500 hover:text-gray-900 text-2xl" aria-label="Close loading tracker">&times;</button>
+            </div>
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <section>
+                    <h3 class="text-sm font-semibold uppercase tracking-widest text-slate-500">Professors Still Needing Loads</h3>
+                    <div id="faculty-loading-gaps" class="mt-3 space-y-3"></div>
+                </section>
+                <section>
+                    <h3 class="text-sm font-semibold uppercase tracking-widest text-slate-500">Programs and Sections Still Needing Loading</h3>
+                    <div id="section-loading-gaps" class="mt-3 space-y-3"></div>
+                </section>
+            </div>
+        </div>
+    </div>
     </div>
 
 
     <script src="../JS/tempDatabase.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <script src="../JS/app.common.js?v=20260905-analytics-fix"></script>
-    <script src="../JS/app.page-dashboard.js?v=20260905-analytics-fix"></script>
+    <script src="../JS/app.common.js?v=20261011-db-analytics"></script>
+    <script src="../JS/app.page-dashboard.js?v=20261011-db-analytics"></script>
 </body>
 </html>
