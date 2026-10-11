@@ -209,12 +209,65 @@ body.calendar-fullscreen {
     overflow: hidden;
 }
 
-/* Separation of Complex Login Image Overlays */
-.login-background {
-    background-image: linear-gradient(rgba(15, 23, 42, 0.75), rgba(15, 23, 42, 0.85)), url('image1.jpg');
+/* Slideshow on Login Page - Natural Brightness & Smooth Cross-fade */
+.slideshow-slide {
+    position: absolute;
+    inset: 0;
     background-size: cover;
     background-position: center;
+    background-repeat: no-repeat;
+    opacity: 0;
+    transition: opacity 1.8s ease-in-out, transform 8s ease-out;
+    transform: scale(1.04);
 }
+
+.slideshow-slide.active {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.slideshow-slide:nth-child(1) { background-image: url('image1.jpg'); }
+.slideshow-slide:nth-child(2) { background-image: url('image2.jpg'); }
+.slideshow-slide:nth-child(3) { background-image: url('image3.jpg'); }
+.slideshow-slide:nth-child(4) { background-image: url('image4.jpg'); }
+.slideshow-slide:nth-child(5) { background-image: url('image5.jpg'); }
+.slideshow-slide:nth-child(6) { background-image: url('background.jpg'); }
+
+/* Light & Vibrant Background Overlay - Not Dark */
+.login-light-overlay {
+    background: radial-gradient(circle at center, rgba(0, 0, 0, 0.04) 0%, rgba(0, 0, 0, 0.22) 100%);
+}
+
+/* Transparent Glassmorphic Login Modal */
+.login-glass-card {
+    background: rgba(15, 23, 42, 0.52);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    box-shadow: 0 25px 60px -10px rgba(0, 0, 0, 0.65), inset 0 1px 1px rgba(255, 255, 255, 0.25);
+}
+
+.login-glass-card .glass-input {
+    background: rgba(255, 255, 255, 0.95);
+    color: #0f172a;
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.login-glass-card .glass-input:focus {
+    background: #ffffff;
+    border-color: #f59e0b;
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.4);
+}
+
+.login-text-shadow {
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.95), 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+
+.login-subtext-shadow {
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.95);
+}
+
 
 /* Custom Scrollbar Styling */
 .custom-scrollbar::-webkit-scrollbar {
