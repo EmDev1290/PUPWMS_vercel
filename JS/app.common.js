@@ -645,7 +645,7 @@ function getClassificationRankLabel(classification, rank) {
 
 function getTimeRange(start, units) {
     const startMinutes = parseTimeStr(start);
-    const endMinutes = startMinutes + units * 60;
+    const endMinutes = startMinutes + Math.round(units * 60);
     return `${start} - ${formatTime(endMinutes)}`;
 }
 
@@ -5890,9 +5890,9 @@ function refreshTimeSlots() {
     if (!timeSelect) return;
 
     let units = Number(unitsInput?.value);
-    if (!units || units < 1) {
+    if (!units || units < 0.5) {
         const subjectUnits = Number(sub?.selectedOptions[0]?.dataset?.units || 3);
-        units = Math.max(1, subjectUnits);
+        units = Math.max(0.5, subjectUnits);
         if (unitsInput) unitsInput.value = units;
     }
 
@@ -5921,7 +5921,8 @@ async function saveLoad() {
     const day = document.getElementById('ld-day')?.value;
     const loadCategory = document.getElementById('ld-category')?.value;
     const prof = document.getElementById('ld-prof')?.value;
-    const units = Math.max(1, Math.floor(Number(document.getElementById('ld-units')?.value || 3)));
+    const rawUnits = Number(document.getElementById('ld-units')?.value || 3);
+    const units = Math.max(0.5, Math.round(rawUnits * 10) / 10);
     const sec = document.getElementById('ld-sec')?.value;
     const room = document.getElementById('ld-room')?.value;
     const building = document.getElementById('ld-building')?.value || State.db.buildings?.[0] || 'Main Building';

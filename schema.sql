@@ -84,9 +84,9 @@ CREATE TABLE `program_subjects` (
     `year_level` VARCHAR(50) NOT NULL,
     `semester` VARCHAR(50) NULL,
     `subject_name` VARCHAR(255) NOT NULL,
-    `lec_units` INT NOT NULL DEFAULT 0,
-    `lab_units` INT NOT NULL DEFAULT 0,
-    `units` INT NOT NULL,
+    `lec_units` DECIMAL(4,1) NOT NULL DEFAULT 0.0,
+    `lab_units` DECIMAL(4,1) NOT NULL DEFAULT 0.0,
+    `units` DECIMAL(4,1) NOT NULL,
     `is_bridging` TINYINT(1) NOT NULL DEFAULT 0,
     FOREIGN KEY (`program_name`) REFERENCES `programs` (`name`) ON DELETE CASCADE
 );
@@ -95,7 +95,7 @@ CREATE TABLE `loads` (
     `id` BIGINT NOT NULL PRIMARY KEY,
     `prof` VARCHAR(255) NOT NULL,
     `sub` VARCHAR(255) NOT NULL,
-    `units` INT NOT NULL,
+    `units` DECIMAL(4,1) NOT NULL,
     `component_type` ENUM('Lec', 'Lab', 'Lec/Lab') NOT NULL DEFAULT 'Lec',
     `load_type` VARCHAR(100) NOT NULL,
     `sec` VARCHAR(100) NOT NULL,

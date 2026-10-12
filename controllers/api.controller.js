@@ -5,6 +5,7 @@ const isText = (value, maxLength) => typeof value === 'string'
     && value.length <= maxLength;
 const isOptionalText = (value, maxLength) => value === undefined || value === null || (typeof value === 'string' && value.length <= maxLength);
 const isPositiveInteger = value => Number.isInteger(Number(value)) && Number(value) > 0;
+const isPositiveNumber = value => !isNaN(Number(value)) && Number(value) > 0;
 const isNonNegativeInteger = value => Number.isInteger(Number(value)) && Number(value) >= 0;
 const getSubjectHours = body => {
     const hasComponents = body.lec_units !== undefined || body.lab_units !== undefined || body.lec !== undefined || body.lab !== undefined;
@@ -412,7 +413,7 @@ exports.createLoad = async (req, res) => {
         const l = req.body;
         const componentType = l?.component_type || 'Lec';
         if (!l || !isValidId(l.id) || !isText(l.prof, 255) || !isText(l.sub, 255)
-            || !isPositiveInteger(l.units) || Number(l.units) > 30
+            || !isPositiveNumber(l.units) || Number(l.units) > 30
             || !['Lec', 'Lab', 'Lec/Lab'].includes(componentType)
             || !isText(l.loadType, 100) || !isText(l.sec, 100)
             || !isText(l.room, 100) || !isText(l.building, 100)

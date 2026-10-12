@@ -251,9 +251,18 @@ function updateSelectedSubjectHours() {
 
     const selectedType = componentSelect.value;
     const availableHours = availableByType[selectedType] || 0;
-    hoursInput.max = String(Math.max(1, availableHours));
+    hoursInput.max = String(Math.max(0.5, availableHours));
     hoursInput.value = String(availableHours);
     hoursInput.dataset.componentRemaining = String(availableHours);
+}
+
+function setPresetHours(val) {
+    const hoursInput = document.getElementById('ld-units');
+    if (hoursInput) {
+        hoursInput.value = val;
+        hoursInput.dispatchEvent(new Event('input'));
+        hoursInput.dispatchEvent(new Event('change'));
+    }
 }
 
 // Generate rows and overlay scheduled workload block cards
@@ -481,7 +490,8 @@ async function saveLoad() {
     const loadCategory = document.getElementById('ld-category')?.value;
     const building = document.getElementById('ld-building')?.value;
     const room = document.getElementById('ld-room')?.value;
-    const units = Math.max(1, Math.floor(Number(document.getElementById('ld-units')?.value || 3)));
+    const rawUnits = Number(document.getElementById('ld-units')?.value || 3);
+    const units = Math.max(0.5, Math.round(rawUnits * 10) / 10);
     
     const sy = document.getElementById('sy-selector')?.value || State.db.schoolYears[0];
     const semester = document.getElementById('load-semester-selector')?.value || '1';
@@ -500,7 +510,7 @@ async function saveLoad() {
 
     // Calculate time range
     const startMinutes = parseTimeStr(selectedTime);
-    const endMinutes = startMinutes + units * 60;
+    const endMinutes = startMinutes + Math.round(units * 60);
     
     if (endMinutes > 1440) {
         showBanner('Workload extends past midnight!', 'error');

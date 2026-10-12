@@ -218,7 +218,7 @@
                         <div class="grid grid-cols-2 gap-3">
                             <div>
                                 <label for="ld-units" class="block text-xs font-semibold text-slate-600 mb-1">Hours</label>
-                                <input id="ld-units" type="number" value="3" min="1" max="6" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none font-medium" />
+                                <input id="ld-units" type="number" value="3" min="0.5" max="12" step="0.5" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none font-medium focus:ring-2 focus:ring-[#7f0000]/20 focus:border-[#7f0000]" placeholder="e.g. 1.5 or 3" />
                             </div>
                             <div class="flex flex-col justify-end gap-2">
                                 <button onclick="saveLoad()" id="save-load-button" class="w-full py-2.5 rounded-xl bg-[#7f0000] text-white text-sm font-bold hover:bg-[#660000] transition shadow-xs">Apply Load</button>
