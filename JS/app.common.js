@@ -7556,7 +7556,9 @@ Polytechnic University of the Philippines - Parañaque City Campus`;
             showBanner(`Opened 1-Click Gmail & logged to Manage Emails!`, 'success');
         } else if (service === 'mailto') {
             const mailtoUrl = `mailto:${encodeURIComponent(recipientEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(plainBody)}`;
-            window.open(mailtoUrl, '_blank');
+            const mailLink = document.createElement('a');
+            mailLink.href = mailtoUrl;
+            mailLink.click();
             closeModal();
             showBanner(`Opened default mail client & logged to Manage Emails!`, 'info');
         }
@@ -7789,6 +7791,21 @@ Polytechnic University of the Philippines - Parañaque City Campus`;
                 }
             }
 
+            const submitBtn = document.querySelector('#modal-container button[type="submit"]') || document.querySelector('button[type="submit"]');
+            const originalBtnHtml = submitBtn ? submitBtn.innerHTML : '';
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = `
+                    <span class="inline-flex items-center gap-1.5">
+                        <svg class="animate-spin h-3.5 w-3.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                        </svg>
+                        <span>Sending via System SMTP...</span>
+                    </span>
+                `;
+            }
+
             try {
                 const res = await apiFetch('/api/emails', {
                     method: 'POST',
@@ -7804,16 +7821,18 @@ Polytechnic University of the Philippines - Parañaque City Campus`;
                 });
                 closeModal();
                 if (res?.delivery?.delivered) {
-                    showBanner(`Workload assignment & Excel file delivered directly to ${recipientEmail} via SMTP!`, 'success');
+                    showBanner(`Workload assignment & official Excel schedule delivered directly to ${recipientEmail} via SMTP!`, 'success');
                 } else {
-                    showBanner(`Workload logged to Manage Emails! (Configure SMTP in .env for direct server delivery, or use the 1-Click Outlook button).`, 'info');
+                    const reason = res?.delivery?.error ? ` (${res.delivery.error})` : '';
+                    showBanner(`Workload logged to Manage Emails! (Note: System SMTP could not reach mail server${reason}. You can also use 1-Click PUP Outlook or Gmail buttons).`, 'info');
                 }
             } catch (err) {
                 console.error('Failed to dispatch workload email:', err);
-                const mailtoUrl = `mailto:${encodeURIComponent(recipientEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(buildPlainTextBody(notes))}`;
-                window.open(mailtoUrl, '_blank');
-                closeModal();
-                showBanner(`Logged workload dispatch to ${recipientEmail}.`, 'info');
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalBtnHtml;
+                }
+                showBanner(`Could not complete SMTP dispatch: ${err.message || 'Server error'}. Please try 1-Click PUP Outlook or Gmail buttons.`, 'error');
             }
         }
     });
@@ -8072,7 +8091,9 @@ function openEmailAllFacultyWorkloadsModal() {
             showBanner(`Opened Gmail with ${selectedFaculty.length} recipients in BCC!`, 'success');
         } else {
             const url = `mailto:?bcc=${encodeURIComponent(bccList)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(genericBody)}`;
-            window.open(url, '_blank');
+            const mailLink = document.createElement('a');
+            mailLink.href = url;
+            mailLink.click();
             showBanner(`Opened default mail client with ${selectedFaculty.length} recipients in BCC!`, 'info');
         }
     };
@@ -8523,7 +8544,9 @@ Polytechnic University of the Philippines - Parañaque City Campus`;
             showBanner(`Opened 1-Click Gmail & logged to Manage Emails!`, 'success');
         } else if (service === 'mailto') {
             const mailtoUrl = `mailto:${encodeURIComponent(recipientEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(plainBody)}`;
-            window.open(mailtoUrl, '_blank');
+            const mailLink = document.createElement('a');
+            mailLink.href = mailtoUrl;
+            mailLink.click();
             closeModal();
             showBanner(`Opened default mail client & logged to Manage Emails!`, 'info');
         }
@@ -8690,6 +8713,21 @@ Polytechnic University of the Philippines - Parañaque City Campus`;
                 console.warn('Could not generate ExcelJS formatted attachment for section timetable:', excelJsErr);
             }
 
+            const submitBtn = document.querySelector('#modal-container button[type="submit"]') || document.querySelector('button[type="submit"]');
+            const originalBtnHtml = submitBtn ? submitBtn.innerHTML : '';
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = `
+                    <span class="inline-flex items-center gap-1.5">
+                        <svg class="animate-spin h-3.5 w-3.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                        </svg>
+                        <span>Sending via System SMTP...</span>
+                    </span>
+                `;
+            }
+
             try {
                 const res = await apiFetch('/api/emails', {
                     method: 'POST',
@@ -8707,14 +8745,16 @@ Polytechnic University of the Philippines - Parañaque City Campus`;
                 if (res?.delivery?.delivered) {
                     showBanner(`Section timetable & Excel file delivered directly to ${recipientEmail} via SMTP!`, 'success');
                 } else {
-                    showBanner(`Timetable email logged to Manage Emails! (Configure SMTP in .env for direct server delivery, or use the 1-Click Outlook button).`, 'info');
+                    const reason = res?.delivery?.error ? ` (${res.delivery.error})` : '';
+                    showBanner(`Timetable email logged to Manage Emails! (Note: System SMTP could not reach mail server${reason}. You can also use 1-Click PUP Outlook or Gmail buttons).`, 'info');
                 }
             } catch (err) {
                 console.error('Failed to dispatch section timetable email:', err);
-                const mailtoUrl = `mailto:${encodeURIComponent(recipientEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(buildPlainTextBody(presName, notes))}`;
-                window.open(mailtoUrl, '_blank');
-                closeModal();
-                showBanner(`Logged section timetable dispatch to ${recipientEmail}.`, 'info');
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalBtnHtml;
+                }
+                showBanner(`Could not complete SMTP dispatch: ${err.message || 'Server error'}. Please try 1-Click PUP Outlook or Gmail buttons.`, 'error');
             }
         }
     });

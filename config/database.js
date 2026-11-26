@@ -24,8 +24,29 @@ if (process.env.DB_SSL === 'true') {
 const knex = require('knex')({
     client: process.env.DB_CLIENT || 'mysql2',
     connection: connectionConfig,
-    acquireConnectionTimeout: 2500, // Fail fast in 2.5s if local DB not reachable
-    pool: { min: 0, max: 7, acquireTimeoutMillis: 2500 }
+    acquireConnectionTimeout: 2000, // Fail fast in 2s if local DB not reachable
+    pool: { min: 0, max: 7, acquireTimeoutMillis: 2000 }
 });
+
+// Cloud / Offline detection flag
+let isMySqlAvailable = null;
+
+// If running on Render, Vercel, or Cloud Run without an explicit remote DB_HOST, default to offline
+const isCloudEnv = Boolean(
+    process.env.RENDER ||
+    process.env.VERCEL ||
+    process.env.FIREBASE_CONFIG ||
+    process.env.K_SERVICE ||
+    (process.env.FIREBASE_SERVICE_ACCOUNT_JSON && (!process.env.DB_HOST || process.env.DB_HOST === '127.0.0.1' || process.env.DB_HOST === 'localhost'))
+);
+
+if (isCloudEnv) {
+    isMySqlAvailable = false;
+    console.log('⚡ Cloud environment detected: Using Cloud Firestore as primary database (local MySQL bypassed for zero latency).');
+}
+
+knex.isMySqlAvailable = () => isMySqlAvailable;
+knex.setMySqlUnavailable = () => { isMySqlAvailable = false; };
+knex.setMySqlAvailable = () => { isMySqlAvailable = true; };
 
 module.exports = knex;

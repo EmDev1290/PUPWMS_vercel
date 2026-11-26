@@ -12,10 +12,13 @@ exports.login = async (req, res) => {
         }
         
         let user = null;
-        try {
-            user = await knex('users').where({ username }).first();
-        } catch (dbErr) {
-            console.warn('Knex user query failed, falling back to Firestore:', dbErr.message);
+        if (knex.isMySqlAvailable() !== false) {
+            try {
+                user = await knex('users').where({ username }).first();
+            } catch (dbErr) {
+                knex.setMySqlUnavailable();
+                console.warn('Knex user query failed, falling back to Firestore:', dbErr.message);
+            }
         }
         
         if (!user) {
