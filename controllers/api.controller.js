@@ -67,7 +67,7 @@ exports.getInitialState = async (req, res) => {
                 if (!hasRateHour) {
                     await knex.schema.alterTable('faculty', t => t.decimal('rate_per_hour', 12, 2).defaultTo(0.00));
                 }
-            } catch (schemaErr) {}
+            } catch (schemaErr) { }
 
             roomRows = await knex('rooms').select('*');
             facultyRows = await knex('faculty').select('*');
@@ -84,7 +84,7 @@ exports.getInitialState = async (req, res) => {
         if (useFirestoreFallback) {
             try {
                 const { db } = require('../config/firestore');
-                
+
                 const [roomsSnap, facultySnap, loadsSnap, programsSnap] = await Promise.all([
                     db.collection('rooms').get(),
                     db.collection('faculty').get(),
@@ -347,19 +347,19 @@ exports.createFaculty = async (req, res) => {
         if (!hasRateDayCol) {
             try {
                 await knex.schema.alterTable('faculty', t => t.decimal('rate_per_day', 12, 2).defaultTo(0.00));
-            } catch (colErr) {}
+            } catch (colErr) { }
         }
         const hasRateMonthCol = await knex.schema.hasColumn('faculty', 'rate_per_month');
         if (!hasRateMonthCol) {
             try {
                 await knex.schema.alterTable('faculty', t => t.decimal('rate_per_month', 12, 2).defaultTo(0.00));
-            } catch (colErr) {}
+            } catch (colErr) { }
         }
         const hasRateHourCol = await knex.schema.hasColumn('faculty', 'rate_per_hour');
         if (!hasRateHourCol) {
             try {
                 await knex.schema.alterTable('faculty', t => t.decimal('rate_per_hour', 12, 2).defaultTo(0.00));
-            } catch (colErr) {}
+            } catch (colErr) { }
         }
         const colInfo = await knex('faculty').columnInfo();
         if (colInfo.email) {
@@ -677,7 +677,7 @@ exports.deleteSection = async (req, res) => {
 exports.updateSubject = async (req, res) => {
     try {
         const { program_name, old_year_level, old_semester, old_subject_name, year_level, semester, subject_name } = req.body;
-        
+
         const isBridging = req.body.is_bridging === true || req.body.is_bridging === 1;
         const { lec, lab, units } = getSubjectHours(req.body);
         const resolvedSemester = semester || (isBridging ? 'Bridging' : '1st Semester');
@@ -932,10 +932,10 @@ exports.createUser = async (req, res) => {
         }
         const existing = await knex('users').where({ username }).first();
         if (existing) return res.status(400).json({ error: 'Username already exists' });
-        
+
         const bcrypt = require('bcryptjs');
         const password_hash = bcrypt.hashSync(password, 10);
-        
+
         await knex('users').insert({
             username: username.trim(),
             password_hash,
@@ -954,17 +954,17 @@ exports.updateUser = async (req, res) => {
     try {
         const { username } = req.params;
         const { role, display_name, id_number, password } = req.body;
-        
+
         const updateData = {};
         if (role) updateData.role = role.trim();
         if (display_name) updateData.display_name = display_name.trim();
         if (id_number) updateData.id_number = id_number.trim();
-        
+
         if (password && password.trim() !== '') {
             const bcrypt = require('bcryptjs');
             updateData.password_hash = bcrypt.hashSync(password, 10);
         }
-        
+
         const updated = await knex('users').where({ username }).update(updateData);
         if (!updated) return res.status(404).json({ error: 'User not found' });
         res.json({ success: true });
@@ -992,7 +992,7 @@ exports.getSettings = async (req, res) => {
     try {
         const hasTable = await knex.schema.hasTable('settings');
         if (!hasTable) return res.json({});
-        
+
         const rows = await knex('settings').select('*');
         const settings = {};
         rows.forEach(row => {
@@ -1010,7 +1010,7 @@ exports.updateSettings = async (req, res) => {
         const settings = req.body;
         const hasTable = await knex.schema.hasTable('settings');
         if (!hasTable) return res.status(400).json({ error: 'Settings table not found' });
-        
+
         for (const [key, value] of Object.entries(settings)) {
             const existing = await knex('settings').where({ key }).first();
             if (existing) {

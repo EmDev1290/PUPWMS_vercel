@@ -1,6 +1,6 @@
 
 // Global Cloud API Router (Directs cloud frontend traffic to Render backend)
-const CLOUD_BACKEND_URL = 'https://pupwms-backend.onrender.com';
+const CLOUD_BACKEND_URL = 'https://pupwms-vercel.onrender.com';
 const BACKEND_URL = (typeof window !== 'undefined' && window.location && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
     ? ''
     : CLOUD_BACKEND_URL;
