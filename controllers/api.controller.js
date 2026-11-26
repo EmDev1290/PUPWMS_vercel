@@ -342,7 +342,7 @@ exports.createSchoolYear = async (req, res) => {
         try {
             const { db } = require('../config/firestore');
             await db.collection('school_years').doc(trimmedName).set({ name: trimmedName }, { merge: true });
-        } catch (fsErr) {}
+        } catch (fsErr) { }
         res.json({ success: true, name: trimmedName });
     } catch (err) {
         console.error('Error creating school year:', err);
@@ -365,7 +365,7 @@ exports.deleteSchoolYear = async (req, res) => {
         try {
             const { db } = require('../config/firestore');
             await db.collection('school_years').doc(trimmedName).delete();
-        } catch (fsErr) {}
+        } catch (fsErr) { }
         res.json({ success: true });
     } catch (err) {
         console.error('Error deleting school year:', err);
@@ -961,7 +961,7 @@ exports.updateSubject = async (req, res) => {
                 });
                 await progRef.update({ subjects: subs });
             }
-        } catch (fsErr) {}
+        } catch (fsErr) { }
         res.json({ success: true });
     } catch (err) {
         console.error(err);
@@ -998,7 +998,7 @@ exports.deleteSubject = async (req, res) => {
                 const subs = (doc.data().subjects || []).filter(s => s.subject_name !== subject_name.trim());
                 await progRef.update({ subjects: subs });
             }
-        } catch (fsErr) {}
+        } catch (fsErr) { }
         res.json({ success: true });
     } catch (err) {
         console.error(err);
@@ -1024,7 +1024,7 @@ exports.getEmails = async (req, res) => {
                 const { db } = require('../config/firestore');
                 const snap = await db.collection('emails').get();
                 emails = snap.docs.map(d => d.data());
-            } catch (fsErr) {}
+            } catch (fsErr) { }
         }
 
         res.json(emails.map(e => ({
@@ -1060,68 +1060,187 @@ exports.createEmail = async (req, res) => {
             created_at: new Date()
         };
 
-        // 1. SMTP Dispatcher (Optimized with short timeout so it never hangs)
+        // 1. Dispatch Email (HTTP REST API on Port 443 OR SMTP)
         let delivery = { delivered: false };
-        const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
-        const smtpPort = Number(process.env.SMTP_PORT || 465);
-        const smtpSecure = process.env.SMTP_SECURE ? process.env.SMTP_SECURE === 'true' : (smtpPort === 465);
-        const smtpUser = process.env.SMTP_USER || 'pupwmssystem@gmail.com';
-        const smtpPass = process.env.SMTP_PASS || 'vnhzgvvhdwrxcjly';
-        const smtpFrom = process.env.SMTP_FROM || `"PUP PQ Academic Head" <${smtpUser}>`;
 
-        if (smtpUser && smtpPass) {
+        const brevoApiKey = process.env.BREVO_API_KEY;
+        const resendApiKey = process.env.RESEND_API_KEY;
+        const sendgridApiKey = process.env.SENDGRID_API_KEY;
+
+        if (brevoApiKey) {
+            // Option A: Brevo HTTP API (Port 443 - Recommended for Render, 300 free emails/day)
             try {
-                const nodemailer = require('nodemailer');
-                const transporter = nodemailer.createTransport({
-                    host: smtpHost,
-                    port: smtpPort,
-                    secure: smtpSecure,
-                    auth: {
-                        user: smtpUser,
-                        pass: smtpPass
+                const brevoBody = {
+                    sender: {
+                        name: 'PUP PQ Academic Head',
+                        email: process.env.BREVO_FROM || process.env.SMTP_USER || 'pupwmssystem@gmail.com'
                     },
-                    connectionTimeout: 4500,
-                    greetingTimeout: 3500,
-                    socketTimeout: 5000,
-                    tls: {
-                        rejectUnauthorized: false
-                    }
-                });
-
-                const mailOptions = {
-                    from: smtpFrom,
-                    to: targetEmail,
+                    to: [{ email: targetEmail, name: (recipient_name || '').trim() || targetEmail }],
                     subject: String(subject).trim(),
-                    html: body || ''
+                    htmlContent: body || '',
+                    attachment: (req.body.attachments || []).map(att => ({
+                        name: att.filename,
+                        content: typeof att.content === 'string' ? att.content : Buffer.from(att.content).toString('base64')
+                    }))
                 };
 
-                if (Array.isArray(req.body.attachments) && req.body.attachments.length > 0) {
-                    mailOptions.attachments = req.body.attachments.map(att => {
-                        let contentBuffer;
-                        if (typeof att.content === 'string') {
-                            contentBuffer = Buffer.from(att.content, 'base64');
-                        } else {
-                            contentBuffer = att.content;
-                        }
-                        return {
-                            filename: att.filename,
-                            content: contentBuffer,
-                            contentType: att.contentType || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                        };
-                    });
+                const brevoRes = await fetch('https://api.brevo.com/v3/smtp/email', {
+                    method: 'POST',
+                    headers: {
+                        'api-key': brevoApiKey,
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(brevoBody)
+                });
+                const brevoData = await brevoRes.json().catch(() => ({}));
+                if (brevoRes.ok) {
+                    delivery = { delivered: true, provider: 'brevo', messageId: brevoData.messageId };
+                    insertData.status = 'sent';
+                } else {
+                    throw new Error(brevoData.message || 'Brevo HTTP delivery failed');
                 }
+            } catch (brevoErr) {
+                console.warn('Brevo delivery error:', brevoErr.message);
+                delivery = { delivered: false, error: brevoErr.message };
+                insertData.status = 'failed';
+            }
+        } else if (resendApiKey) {
+            // Option B: Resend HTTP API (Port 443 - 3,000 free emails/month)
+            try {
+                const resendBody = {
+                    from: process.env.RESEND_FROM || 'PUP PQ Academic Head <onboarding@resend.dev>',
+                    to: [targetEmail],
+                    subject: String(subject).trim(),
+                    html: body || '',
+                    attachments: (req.body.attachments || []).map(att => ({
+                        filename: att.filename,
+                        content: typeof att.content === 'string' ? att.content : Buffer.from(att.content).toString('base64')
+                    }))
+                };
 
-                await transporter.sendMail(mailOptions);
-                delivery = { delivered: true };
-                insertData.status = 'sent';
-            } catch (smtpErr) {
-                console.warn('SMTP delivery attempt finished:', smtpErr.message);
-                delivery = { delivered: false, error: smtpErr.message };
-                insertData.status = 'logged';
+                const resendRes = await fetch('https://api.resend.com/emails', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${resendApiKey}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(resendBody)
+                });
+                const resendData = await resendRes.json().catch(() => ({}));
+                if (resendRes.ok) {
+                    delivery = { delivered: true, provider: 'resend', id: resendData.id };
+                    insertData.status = 'sent';
+                } else {
+                    throw new Error(resendData.message || 'Resend HTTP delivery failed');
+                }
+            } catch (resendErr) {
+                console.warn('Resend delivery error:', resendErr.message);
+                delivery = { delivered: false, error: resendErr.message };
+                insertData.status = 'failed';
+            }
+        } else if (sendgridApiKey) {
+            // Option C: SendGrid HTTP API (Port 443)
+            try {
+                const sendgridBody = {
+                    personalizations: [{ to: [{ email: targetEmail }] }],
+                    from: { email: process.env.SENDGRID_FROM || 'pupwmssystem@gmail.com', name: 'PUP PQ Academic Head' },
+                    subject: String(subject).trim(),
+                    content: [{ type: 'text/html', value: body || '' }],
+                    attachments: (req.body.attachments || []).map(att => ({
+                        filename: att.filename,
+                        content: typeof att.content === 'string' ? att.content : Buffer.from(att.content).toString('base64'),
+                        type: att.contentType || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                    }))
+                };
+
+                const sgRes = await fetch('https://api.sendgrid.com/v3/mail/send', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${sendgridApiKey}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(sendgridBody)
+                });
+                if (sgRes.ok) {
+                    delivery = { delivered: true, provider: 'sendgrid' };
+                    insertData.status = 'sent';
+                } else {
+                    const sgErr = await sgRes.json().catch(() => ({}));
+                    throw new Error(sgErr.errors?.[0]?.message || 'SendGrid delivery failed');
+                }
+            } catch (sgErr) {
+                console.warn('SendGrid delivery error:', sgErr.message);
+                delivery = { delivered: false, error: sgErr.message };
+                insertData.status = 'failed';
             }
         } else {
-            delivery = { delivered: false, error: 'SMTP credentials not configured' };
-            insertData.status = 'logged';
+            // Option D: Standard SMTP (Gmail, custom host)
+            const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
+            const smtpPort = Number(process.env.SMTP_PORT || 465);
+            const smtpSecure = process.env.SMTP_SECURE ? process.env.SMTP_SECURE === 'true' : (smtpPort === 465);
+            const smtpUser = process.env.SMTP_USER || 'pupwmssystem@gmail.com';
+            const smtpPass = process.env.SMTP_PASS || 'vnhzgvvhdwrxcjly';
+            const smtpFrom = process.env.SMTP_FROM || `"PUP PQ Academic Head" <${smtpUser}>`;
+
+            if (smtpUser && smtpPass) {
+                try {
+                    const nodemailer = require('nodemailer');
+                    const transporter = nodemailer.createTransport({
+                        host: smtpHost,
+                        port: smtpPort,
+                        secure: smtpSecure,
+                        auth: {
+                            user: smtpUser,
+                            pass: smtpPass
+                        },
+                        connectionTimeout: 4500,
+                        greetingTimeout: 3500,
+                        socketTimeout: 5000,
+                        tls: {
+                            rejectUnauthorized: false
+                        }
+                    });
+
+                    const mailOptions = {
+                        from: smtpFrom,
+                        to: targetEmail,
+                        subject: String(subject).trim(),
+                        html: body || ''
+                    };
+
+                    if (Array.isArray(req.body.attachments) && req.body.attachments.length > 0) {
+                        mailOptions.attachments = req.body.attachments.map(att => {
+                            let contentBuffer;
+                            if (typeof att.content === 'string') {
+                                contentBuffer = Buffer.from(att.content, 'base64');
+                            } else {
+                                contentBuffer = att.content;
+                            }
+                            return {
+                                filename: att.filename,
+                                content: contentBuffer,
+                                contentType: att.contentType || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                            };
+                        });
+                    }
+
+                    await transporter.sendMail(mailOptions);
+                    delivery = { delivered: true, provider: 'smtp' };
+                    insertData.status = 'sent';
+                } catch (smtpErr) {
+                    console.warn('SMTP delivery attempt finished:', smtpErr.message);
+                    const isTimeout = smtpErr.message.includes('timeout') || smtpErr.code === 'ETIMEDOUT';
+                    const friendlyError = isTimeout
+                        ? 'Render Free Tier blocks outbound SMTP ports (465/587). Add BREVO_API_KEY or RESEND_API_KEY in Render, or use 1-Click PUP Outlook / Gmail buttons!'
+                        : smtpErr.message;
+                    delivery = { delivered: false, error: friendlyError, rawError: smtpErr.message };
+                    insertData.status = 'logged';
+                }
+            } else {
+                delivery = { delivered: false, error: 'SMTP credentials not configured' };
+                insertData.status = 'logged';
+            }
         }
 
         // 2. Persist Email Log (Fast Knex attempt + Firestore)
@@ -1147,7 +1266,7 @@ exports.createEmail = async (req, res) => {
         try {
             const { db } = require('../config/firestore');
             await db.collection('emails').doc(String(savedId)).set(insertData, { merge: true });
-        } catch (fsErr) {}
+        } catch (fsErr) { }
 
         res.json({ success: true, id: savedId, delivery });
     } catch (err) {
@@ -1174,7 +1293,7 @@ exports.updateEmailStatus = async (req, res) => {
         try {
             const { db } = require('../config/firestore');
             await db.collection('emails').doc(String(id)).set({ status, updated_at: new Date() }, { merge: true });
-        } catch (fsErr) {}
+        } catch (fsErr) { }
         res.json({ success: true });
     } catch (err) {
         console.error(err);
@@ -1196,7 +1315,7 @@ exports.deleteEmail = async (req, res) => {
         try {
             const { db } = require('../config/firestore');
             await db.collection('emails').doc(String(id)).delete();
-        } catch (fsErr) {}
+        } catch (fsErr) { }
         res.json({ success: true });
     } catch (err) {
         console.error(err);
@@ -1228,7 +1347,7 @@ exports.getUsers = async (req, res) => {
                         id_number: data.id_number
                     };
                 });
-            } catch (fsErr) {}
+            } catch (fsErr) { }
         }
         res.json(users);
     } catch (err) {
@@ -1265,7 +1384,7 @@ exports.createUser = async (req, res) => {
         try {
             const { db } = require('../config/firestore');
             await db.collection('users').doc(username.trim()).set(userData, { merge: true });
-        } catch (fsErr) {}
+        } catch (fsErr) { }
         res.json({ success: true });
     } catch (err) {
         console.error(err);
@@ -1297,7 +1416,7 @@ exports.updateUser = async (req, res) => {
         try {
             const { db } = require('../config/firestore');
             await db.collection('users').doc(username).set(updateData, { merge: true });
-        } catch (fsErr) {}
+        } catch (fsErr) { }
         res.json({ success: true });
     } catch (err) {
         console.error(err);
@@ -1319,7 +1438,7 @@ exports.deleteUser = async (req, res) => {
         try {
             const { db } = require('../config/firestore');
             await db.collection('users').doc(username).delete();
-        } catch (fsErr) {}
+        } catch (fsErr) { }
         res.json({ success: true });
     } catch (err) {
         console.error(err);
@@ -1351,7 +1470,7 @@ exports.getSettings = async (req, res) => {
                 if (doc.exists) {
                     settings = doc.data();
                 }
-            } catch (fsErr) {}
+            } catch (fsErr) { }
         }
         res.json(settings);
     } catch (err) {
@@ -1383,7 +1502,7 @@ exports.updateSettings = async (req, res) => {
         try {
             const { db } = require('../config/firestore');
             await db.collection('settings').doc('general').set(settings, { merge: true });
-        } catch (fsErr) {}
+        } catch (fsErr) { }
         res.json({ success: true });
     } catch (err) {
         console.error(err);
@@ -1414,7 +1533,7 @@ exports.updateMyCredentials = async (req, res) => {
                 const { db } = require('../config/firestore');
                 const doc = await db.collection('users').doc(currentUser.username).get();
                 if (doc.exists) user = doc.data();
-            } catch (fsErr) {}
+            } catch (fsErr) { }
         }
         if (!user) return res.status(404).json({ error: 'User not found.' });
 
@@ -1445,7 +1564,7 @@ exports.updateMyCredentials = async (req, res) => {
             } else {
                 await db.collection('users').doc(currentUser.username).set(updateData, { merge: true });
             }
-        } catch (fsErr) {}
+        } catch (fsErr) { }
         res.json({ success: true, username: new_username.trim() });
     } catch (err) {
         console.error(err);

@@ -7821,10 +7821,11 @@ Polytechnic University of the Philippines - Parañaque City Campus`;
                 });
                 closeModal();
                 if (res?.delivery?.delivered) {
-                    showBanner(`Workload assignment & official Excel schedule delivered directly to ${recipientEmail} via SMTP!`, 'success');
+                    const via = res?.delivery?.provider ? ` via ${res.delivery.provider.toUpperCase()}` : '';
+                    showBanner(`Workload assignment & official Excel schedule delivered to ${recipientEmail}${via}!`, 'success');
                 } else {
-                    const reason = res?.delivery?.error ? ` (${res.delivery.error})` : '';
-                    showBanner(`Workload logged to Manage Emails! (Note: System SMTP could not reach mail server${reason}. You can also use 1-Click PUP Outlook or Gmail buttons).`, 'info');
+                    const errorMsg = res?.delivery?.error || 'System SMTP could not reach mail server (timeout).';
+                    showBanner(`Workload saved to Manage Emails! ${errorMsg}`, 'info');
                 }
             } catch (err) {
                 console.error('Failed to dispatch workload email:', err);
@@ -8743,10 +8744,11 @@ Polytechnic University of the Philippines - Parañaque City Campus`;
                 });
                 closeModal();
                 if (res?.delivery?.delivered) {
-                    showBanner(`Section timetable & Excel file delivered directly to ${recipientEmail} via SMTP!`, 'success');
+                    const via = res?.delivery?.provider ? ` via ${res.delivery.provider.toUpperCase()}` : '';
+                    showBanner(`Section timetable & Excel file delivered to ${recipientEmail}${via}!`, 'success');
                 } else {
-                    const reason = res?.delivery?.error ? ` (${res.delivery.error})` : '';
-                    showBanner(`Timetable email logged to Manage Emails! (Note: System SMTP could not reach mail server${reason}. You can also use 1-Click PUP Outlook or Gmail buttons).`, 'info');
+                    const errorMsg = res?.delivery?.error || 'System SMTP could not reach mail server (timeout).';
+                    showBanner(`Timetable email saved to Manage Emails! ${errorMsg}`, 'info');
                 }
             } catch (err) {
                 console.error('Failed to dispatch section timetable email:', err);
