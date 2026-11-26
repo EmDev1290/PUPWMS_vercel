@@ -7,3 +7,6 @@ node_modules
 logs/
 *.mp4
 diff_output.txt
+serviceAccountKey.json
+service-account*.json
+public/

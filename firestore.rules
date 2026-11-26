@@ -1,0 +1,13 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Server-side Cloud Functions / Admin SDK bypass these rules automatically.
+    // Client-side access rules:
+    
+    // Allow read/write during development or when authenticated
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}

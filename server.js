@@ -158,7 +158,7 @@ app.post('/api/scan-system-files', async (req, res) => {
         // ----------------------------------------------------
         // A. Parse Rooms Assigned Spreadsheet
         // ----------------------------------------------------
-        const roomFile = files.find(f => f.toUpperCase().includes('ROOM-ASSIGNED') && f.endsWith('.xlsx'));
+        const roomFile = files.find(f => (f.toUpperCase().includes('ROOM-ASSIGNED') || f.toUpperCase().includes('ROOM')) && (f.endsWith('.xlsx') || f.endsWith('.ods')));
         if (roomFile) {
             const workbook = xlsx.readFile(path.join(dir, roomFile));
             workbook.SheetNames.forEach(sheetName => {
@@ -177,17 +177,39 @@ app.post('/api/scan-system-files', async (req, res) => {
 
         // ----------------------------------------------------
         // B. Parse Faculty Profiles Spreadsheet
+        // (Extracts Name, Designation, Degree/Attainment, Nature, Program)
+        // NOTE: Loads are NOT extracted here. Loading is handled in scheduling.
         // ----------------------------------------------------
-        const facultyFile = files.find(f => f.toUpperCase().includes('FACULTY-PROFILE') && f.endsWith('.xlsx'));
+        const facultyFile = files.find(f => (f.toUpperCase().includes('FACULTY-PROFILE') || f.toUpperCase().includes('FACULTY PROFILE') || f.toUpperCase().includes('FACULTY_PROFILE') || f.toUpperCase().includes('FACULTY')) && (f.endsWith('.xlsx') || f.endsWith('.ods')));
         if (facultyFile) {
             const workbook = xlsx.readFile(path.join(dir, facultyFile));
-            const targetSheets = ['GEN-ED', 'BSCPE', 'BSIT', 'BSHM', 'BSOA'];
 
-            workbook.SheetNames.forEach(sheetName => {
-                const upperSheet = sheetName.toUpperCase().trim();
-                const matchedSheet = targetSheets.find(s => upperSheet.includes(s));
-                if (!matchedSheet) return;
+            const normalizeFacultySheetProgram = (sheetName) => {
+                const upper = sheetName.toUpperCase().replace(/\s+/g, ' ').trim();
+                if (upper.includes('ALL FACULTY')) return null; // Summary list processed after departmental sheets
+                if (upper.includes('BSIT')) return 'Information Technology';
+                if (upper.includes('BSCPE') || upper.includes('BSCP')) return 'Computer Engineering';
+                if (upper.includes('BSHM')) return 'Hospitality Management';
+                if (upper.includes('BSOA')) return 'Office Administration';
+                if (upper.includes('GEN-ED') || upper.includes('GEN ED') || upper.includes('GENERAL EDUCATION')) return 'General Education';
+                return null;
+            };
 
+            const facultyMap = new Map();
+
+            // Sort sheets: 2nd sem specific sheets first, then base sheets, then ALL FACULTY summary sheet
+            const sortedFacultySheets = [...workbook.SheetNames].sort((a, b) => {
+                const aAll = a.toUpperCase().includes('ALL FACULTY');
+                const bAll = b.toUpperCase().includes('ALL FACULTY');
+                if (aAll !== bAll) return aAll ? 1 : -1;
+                const a2nd = a.toUpperCase().includes('2ND SEM');
+                const b2nd = b.toUpperCase().includes('2ND SEM');
+                if (a2nd !== b2nd) return b2nd ? 1 : -1;
+                return 0;
+            });
+
+            sortedFacultySheets.forEach(sheetName => {
+                const program = normalizeFacultySheetProgram(sheetName) || 'General Education';
                 const sheet = workbook.Sheets[sheetName];
                 const rows = xlsx.utils.sheet_to_json(sheet, { header: 1 });
                 if (rows.length < 3) return;
@@ -202,13 +224,6 @@ app.post('/api/scan-system-files', async (req, res) => {
                     }
                 }
 
-                // Map Program name
-                let program = 'General Education';
-                if (matchedSheet === 'BSIT') program = 'Information Technology';
-                else if (matchedSheet === 'BSCPE') program = 'Computer Engineering';
-                else if (matchedSheet === 'BSHM') program = 'Hospitality Management';
-                else if (matchedSheet === 'BSOA') program = 'Office Administration';
-
                 // Parse Faculty data rows
                 for (let i = headerRowIdx + 1; i < rows.length; i++) {
                     const row = rows[i];
@@ -217,8 +232,20 @@ app.post('/api/scan-system-files', async (req, res) => {
                     const nameCell = String(row[1]).trim();
                     if (!nameCell || nameCell === 'NO.' || nameCell.toLowerCase().includes('personnel') || nameCell.toLowerCase().includes('name')) continue;
 
-                    const cleanName = nameCell.split('\n')[0].trim();
-                    if (!cleanName || facultyNamesSet.has(cleanName)) continue;
+                    const nameParts = nameCell.split('\n').map(s => s.trim()).filter(Boolean);
+                    const cleanName = nameParts[0];
+                    if (!cleanName) continue;
+
+                    const cleanKey = cleanName.replace(/[^A-Za-z]/g, '').toLowerCase();
+
+                    // Find if instructor already exists (match exact or match without middle initial)
+                    let existingFaculty = null;
+                    for (const [k, v] of facultyMap.entries()) {
+                        if (k === cleanKey || (cleanKey.length > 8 && (k.startsWith(cleanKey) || cleanKey.startsWith(k)))) {
+                            existingFaculty = v;
+                            break;
+                        }
+                    }
 
                     const baccalaureate = row[2] ? String(row[2]).trim() : '';
                     const masters = row[3] ? String(row[3]).trim() : '';
@@ -233,8 +260,38 @@ app.post('/api/scan-system-files', async (req, res) => {
                     const prof = row[11] ? String(row[11]).trim() : '';
                     const tech = row[12] ? String(row[12]).trim() : '';
 
+                    const researchProd = row[13] ? String(row[13]).trim() : '0';
+                    const researchPres = row[14] ? String(row[14]).trim() : '0';
+                    const researchPub = row[15] ? String(row[15]).trim() : '0';
+                    const researchCit = row[16] ? String(row[16]).trim() : '0';
+                    const extension = row[17] ? String(row[17]).trim() : '';
+                    const remarks = row[19] ? String(row[19]).trim() : '';
+
+                    const prefList = [genEd, core, prof, tech].filter(Boolean).map(s => s.replace(/\n/g, ', '));
+                    const preferredSubjects = prefList.join(', ');
+
+                    if (existingFaculty) {
+                        if (program && !sheetName.toUpperCase().includes('ALL FACULTY')) {
+                            const existingPrograms = existingFaculty.program.split(',').map(p => p.trim());
+                            if (!existingPrograms.includes(program)) {
+                                existingFaculty.program += ', ' + program;
+                            }
+                        }
+                        if (!existingFaculty.baccalaureate && baccalaureate) existingFaculty.baccalaureate = baccalaureate;
+                        if (!existingFaculty.masters && masters) existingFaculty.masters = masters;
+                        if (!existingFaculty.doctorate && doctorate) existingFaculty.doctorate = doctorate;
+                        if (!existingFaculty.post_baccalaureate && postBac) existingFaculty.post_baccalaureate = postBac;
+                        if (!existingFaculty.license_number && licenseNo) existingFaculty.license_number = licenseNo;
+                        if (!existingFaculty.specialization && specialization) existingFaculty.specialization = specialization;
+                        if (!existingFaculty.national_certificate && nc) existingFaculty.national_certificate = nc;
+                        if (!existingFaculty.preferred_subjects && preferredSubjects) existingFaculty.preferred_subjects = preferredSubjects;
+                        continue;
+                    }
+
+                    let baseDesignation = nameParts.length > 1 ? nameParts.slice(1).join(' ') : 'Instructor';
+
                     let appointment = 'Part-Time';
-                    for (let c = 13; c < Math.min(row.length, 20); c++) {
+                    for (let c = 6; c < Math.min(row.length, 22); c++) {
                         const val = String(row[c] || '').toUpperCase();
                         if (val.includes('PART-TIME') || val.includes('PARTTIME')) {
                             appointment = 'Part-Time';
@@ -245,14 +302,11 @@ app.post('/api/scan-system-files', async (req, res) => {
                         }
                     }
 
-                    const prefList = [genEd, core, prof, tech].filter(Boolean).map(s => s.replace(/\n/g, ', '));
-                    const preferredSubjects = prefList.join(', ');
-
                     const id = `prof-${cleanName.toLowerCase().replace(/[^a-z]/g, '')}`;
-                    facultyToInsert.push({
+                    facultyMap.set(cleanKey, {
                         id,
                         name: cleanName,
-                        base_designation: 'Instructor',
+                        base_designation: baseDesignation,
                         program,
                         employment_type: appointment === 'Full-Time' ? 'Regular' : 'Part-Time',
                         classification: appointment === 'Full-Time' ? 'Regular' : 'Part-Time',
@@ -268,123 +322,121 @@ app.post('/api/scan-system-files', async (req, res) => {
                         core_subject: core,
                         professional_subject: prof,
                         technical_subject: tech,
+                        research_production: researchProd,
+                        research_presentation: researchPres,
+                        research_publication: researchPub,
+                        research_citation: researchCit,
+                        extension: extension,
                         nature_of_appointment: appointment,
                         preferred_subjects: preferredSubjects,
-                        preferred_times: ''
+                        preferred_times: '',
+                        remarks: remarks
                     });
-
-                    facultyNamesSet.add(cleanName);
                 }
             });
+
+            facultyToInsert.push(...facultyMap.values());
         }
 
         // ----------------------------------------------------
-        // C. Parse Offerings & Class Schedules
+        // C. Parse Course Curriculum / Offerings
+        // (Extracts Program, Year, Semester, Subject, Lec, Lab, Units, Sections)
+        // NOTE: Loads are NOT extracted here. Loading is handled in scheduling.
         // ----------------------------------------------------
-        const offeringFiles = files.filter(f => (f.toUpperCase().includes('OFFERING') || f.toUpperCase().includes('SCHED') || f.toUpperCase().includes('LOAD')) && (f.endsWith('.xlsx') || f.endsWith('.ods')));
+        const spreadsheetFiles = files.filter(f => f.endsWith('.xlsx') || f.endsWith('.ods'));
+        const curriculumFiles = spreadsheetFiles.filter(f => f !== roomFile && f !== facultyFile);
 
         const normalizeCell = (value) => value === null || value === undefined ? '' : String(value).trim();
-        const isSubjectCodeLike = (value) => {
-            const text = normalizeCell(value).replace(/\s+/g, ' ');
-            if (!text || text.toLowerCase().includes('subject') || text.toLowerCase().includes('time') || text.toLowerCase().includes('description')) {
-                return false;
-            }
-            return /^[A-Z]{2,7}\s*\d{2,5}[A-Z]?$/i.test(text) || /^[A-Z]{2,7}\s*\d{2,5}[A-Z]?\s*[-/][A-Z0-9]+$/i.test(text);
-        };
-        const cleanProfessorName = (value) => {
-            const cleaned = normalizeCell(value)
-                .replace(/\r?\n/g, ' ')
-                .replace(/\s+/g, ' ')
-                .replace(/^Prof\.?\s*/i, '')
-                .replace(/^Dr\.?\s*/i, '')
-                .replace(/^Professor\s*/i, '')
-                .trim();
-            return cleaned;
-        };
-        const normalizeDay = (value) => {
-            const text = normalizeCell(value).toLowerCase();
-            if (!text || text === 'tba' || text === 'n/a') return '';
-            if (text.includes('monday')) return 'Monday';
-            if (text.includes('tuesday')) return 'Tuesday';
-            if (text.includes('wednesday')) return 'Wednesday';
-            if (text.includes('thursday')) return 'Thursday';
-            if (text.includes('friday')) return 'Friday';
-            if (text.includes('saturday')) return 'Saturday';
-            if (text.includes('sunday')) return 'Sunday';
-            return normalizeCell(value);
-        };
-        const normalizeTimeRange = (value) => {
-            const raw = normalizeCell(value);
-            if (!raw || raw.toLowerCase() === 'tba' || raw.toLowerCase() === 'n/a') return '';
-            const compact = raw.replace(/\s+/g, '').toLowerCase();
-            if (!compact.includes('-')) return raw;
-            const clean = compact.replace(/[^0-9a-z:-]/g, '');
-            const parts = clean.split('-');
-            if (parts.length !== 2) return raw;
-            const formatPart = (part) => {
-                const amp = /am/.test(part) ? 'AM' : /pm/.test(part) ? 'PM' : '';
-                const digits = part.replace(/[^0-9:]/g, '');
-                const sub = digits.split(':');
-                let hour = parseInt(sub[0], 10);
-                let minute = sub[1] || '00';
-                if (!Number.isNaN(hour)) {
-                    if (hour < 10 && hour !== 0) hour = `0${hour}`;
-                    if (hour === 0) hour = '12';
-                    if (amp === 'PM' && hour !== 12) hour = Number(hour) + 12;
-                    if (amp === 'AM' && hour === 12) hour = 0;
-                    if (hour < 10 && String(hour).length === 1) hour = `0${hour}`;
-                    return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')} ${amp}`.trim();
-                }
-                return part;
-            };
-            try {
-                const start = formatPart(parts[0]);
-                const end = formatPart(parts[1]);
-                return `${start} - ${end}`.replace(/\s+/g, ' ').trim();
-            } catch (e) {
-                return raw;
-            }
+
+        const cleanYearLevel = (text) => {
+            const s = String(text || '').toLowerCase();
+            if (s.includes('first') || s.includes('1st') || s.includes('1-')) return '1st Year';
+            if (s.includes('second') || s.includes('2nd') || s.includes('2-')) return '2nd Year';
+            if (s.includes('third') || s.includes('3rd') || s.includes('3-')) return '3rd Year';
+            if (s.includes('fourth') || s.includes('4th') || s.includes('4-')) return '4th Year';
+            return '1st Year';
         };
 
-        for (const file of offeringFiles) {
+        const mapProgramFromText = (text) => {
+            const t = String(text || '').toUpperCase();
+            if (t.includes('INFORMATION TECHNOLOGY') || t.startsWith('BSIT')) return 'Information Technology';
+            if (t.includes('COMPUTER ENGINEERING') || t.startsWith('BSCPE') || t.startsWith('BSCP')) return 'Computer Engineering';
+            if (t.includes('HOSPITALITY') || t.startsWith('BSHM')) return 'Hospitality Management';
+            if (t.includes('OFFICE ADMINISTRATION') || t.startsWith('BSOA')) return 'Office Administration';
+            return 'General Education';
+        };
+
+        for (const file of curriculumFiles) {
             const workbook = xlsx.readFile(path.join(dir, file));
-            let defaultSemester = '1st Semester';
+            let fileDefaultSemester = '1st Semester';
             if (file.toLowerCase().includes('second') || file.toLowerCase().includes('2nd') || file.toLowerCase().includes('2sem')) {
-                defaultSemester = '2nd Semester';
+                fileDefaultSemester = '2nd Semester';
             }
 
             for (const sheetName of workbook.SheetNames) {
+                // If there are duplicate _forposting sheets, skip if base sheet exists in workbook
+                if (sheetName.includes('_for') && workbook.SheetNames.includes(sheetName.replace(/_for_?posting/i, ''))) {
+                    continue;
+                }
+
                 const sheet = workbook.Sheets[sheetName];
                 const rows = xlsx.utils.sheet_to_json(sheet, { header: 1, blankrows: false, defval: '' });
                 if (rows.length < 2) continue;
 
+                let currentProgram = mapProgramFromText(sheetName);
+                let currentSemester = fileDefaultSemester;
+                let currentYear = '1st Year';
+                const isBridgingSheet = sheetName.toUpperCase().includes('BRIDGING');
+                if (isBridgingSheet) currentSemester = 'Bridging';
+                if (sheetName.toUpperCase().includes('SUMMER')) currentSemester = 'Summer Semester';
+
                 let headerRowIdx = -1;
                 let colMapping = {};
 
-                for (let i = 0; i < Math.min(20, rows.length); i++) {
+                for (let i = 0; i < Math.min(15, rows.length); i++) {
                     const row = rows[i];
                     if (!row || !Array.isArray(row)) continue;
-                    const normalizedRow = row.map(cell => typeof cell === 'string' ? cell.toLowerCase() : cell);
-                    const headerMatch = normalizedRow.findIndex(cell => {
-                        if (typeof cell !== 'string') return false;
-                        const clean = cell.replace(/[^a-z]/g, '');
-                        return clean.includes('subjectcode') || clean.includes('subject') && clean.includes('code');
+
+                    row.forEach((cell, idx) => {
+                        const cellStr = normalizeCell(cell);
+                        if (!cellStr) return;
+
+                        if (cellStr.toUpperCase().includes('BACHELOR OF SCIENCE') || cellStr.toUpperCase().includes('DEPARTMENT')) {
+                            currentProgram = mapProgramFromText(cellStr);
+                        }
+                        if (cellStr.toLowerCase().includes('first semester')) currentSemester = '1st Semester';
+                        if (cellStr.toLowerCase().includes('second semester')) currentSemester = '2nd Semester';
+                        if (cellStr.toLowerCase().includes('summer')) currentSemester = 'Summer Semester';
+                        if (cellStr.toLowerCase().includes('year') && !cellStr.toLowerCase().includes('subject')) {
+                            currentYear = cleanYearLevel(cellStr);
+                        }
+
+                        const clean = cellStr.toLowerCase().replace(/[^a-z]/g, '');
+                        if (clean.includes('subjectcode') || (clean.includes('subject') && clean.includes('code'))) colMapping.subCode = idx;
+                        else if (clean.includes('description') || clean.includes('subjectname')) colMapping.desc = idx;
+                        else if (clean === 'lec' || clean === 'lecunits' || clean === 'lechours') colMapping.lec = idx;
+                        else if (clean === 'lab' || clean === 'labunits' || clean === 'labhours') colMapping.lab = idx;
+                        else if (clean.includes('credited') || clean.includes('units') || clean === 'unit') colMapping.units = idx;
+                        else if (clean.includes('section')) colMapping.sec = idx;
+                        else if (clean.includes('yearlevel')) colMapping.year = idx;
+                        else if (clean.includes('program')) colMapping.prog = idx;
                     });
-                    if (headerMatch !== -1) {
+
+                    if (colMapping.subCode !== undefined && (colMapping.desc !== undefined || colMapping.units !== undefined)) {
                         headerRowIdx = i;
-                        row.forEach((cell, idx) => {
-                            if (!cell) return;
-                            const normalized = String(cell).toLowerCase().replace(/[^a-z]/g, '');
-                            if (normalized.includes('subjectcode')) colMapping.subCode = idx;
-                            else if (normalized.includes('description') || normalized.includes('subjectname')) colMapping.desc = idx;
-                            else if (normalized.includes('credited') || normalized.includes('unit')) colMapping.units = idx;
-                            else if (normalized.includes('section')) colMapping.sec = idx;
-                            else if (normalized.includes('room')) colMapping.room = idx;
-                            else if (normalized.includes('professor') || normalized.includes('teacher')) colMapping.prof = idx;
-                            else if (normalized.includes('day')) colMapping.day = idx;
-                            else if (normalized.includes('time')) colMapping.time = idx;
-                        });
                         break;
+                    }
+                }
+
+                // Fallback for sheets without explicit header labels (e.g. SUMMER sheets)
+                if (headerRowIdx === -1) {
+                    for (let i = 0; i < Math.min(5, rows.length); i++) {
+                        const r = rows[i];
+                        if (r && r[0] && /^[A-Z]{2,7}\s*\d{2,5}/i.test(normalizeCell(r[0]))) {
+                            headerRowIdx = 0;
+                            colMapping = { subCode: 0, desc: 1, lec: 2, lab: 3, units: 5, sec: 6 };
+                            break;
+                        }
                     }
                 }
 
@@ -394,115 +446,69 @@ app.post('/api/scan-system-files', async (req, res) => {
                     const row = rows[i];
                     if (!row || !Array.isArray(row)) continue;
 
-                    const subjectCell = row[colMapping.subCode] !== undefined ? row[colMapping.subCode] : row[0];
-                    const rawSubCode = normalizeCell(subjectCell);
-                    if (!isSubjectCodeLike(rawSubCode)) continue;
+                    const rowText = row.filter(c => c !== '').join(' ');
+                    if (!rowText) continue;
 
-                    const desc = colMapping.desc !== undefined ? normalizeCell(row[colMapping.desc]) : '';
-                    const sectionName = colMapping.sec !== undefined ? normalizeCell(row[colMapping.sec]) : (row[6] ? normalizeCell(row[6]) : '');
-                    const unitsValue = colMapping.units !== undefined ? parseFloat(String(row[colMapping.units] || 3)) : 3;
-                    const unitsVal = Number.isFinite(unitsValue) ? unitsValue : 3;
-
-                    if (!sectionName) continue;
-
-                    let programName = 'General Education';
-                    const secPrefix = sectionName.split(' ')[0].toUpperCase().trim();
-                    if (secPrefix.startsWith('BSIT')) programName = 'Information Technology';
-                    else if (secPrefix.startsWith('BSCP') || secPrefix.startsWith('BSCPE')) programName = 'Computer Engineering';
-                    else if (secPrefix.startsWith('BSHM')) programName = 'Hospitality Management';
-                    else if (secPrefix.startsWith('BSOA')) programName = 'Office Administration';
-
-                    const sectionKey = `${programName}::${sectionName}`;
-                    if (!sectionKeysSet.has(sectionKey)) {
-                        sectionsToInsert.push({ program_name: programName, section_name: sectionName });
-                        sectionKeysSet.add(sectionKey);
-                    }
-
-                    let yearLevel = '1st Year';
-                    if (sectionName.includes('1-')) yearLevel = '1st Year';
-                    else if (sectionName.includes('2-')) yearLevel = '2nd Year';
-                    else if (sectionName.includes('3-')) yearLevel = '3rd Year';
-                    else if (sectionName.includes('4-')) yearLevel = '4th Year';
-
-                    const subCode = rawSubCode.replace(/\s+/g, ' ');
-                    const subjectName = desc ? `${subCode} - ${desc}` : subCode;
-
-                    const subjectKey = `${programName}::${yearLevel}::${defaultSemester}::${subjectName}`;
-                    if (!subjectKeysSet.has(subjectKey)) {
-                        subjectsToInsert.push({
-                            program_name: programName,
-                            year_level: yearLevel,
-                            semester: defaultSemester,
-                            subject_name: subjectName,
-                            units: unitsVal
-                        });
-                        subjectKeysSet.add(subjectKey);
-                    }
-
-                    const profVal = colMapping.prof !== undefined ? normalizeCell(row[colMapping.prof]) : (row[7] ? normalizeCell(row[7]) : '');
-                    const dayValRaw = colMapping.day !== undefined ? normalizeCell(row[colMapping.day]) : (row[8] ? normalizeCell(row[8]) : '');
-                    const timeValRaw = colMapping.time !== undefined ? normalizeCell(row[colMapping.time]) : (row[9] ? normalizeCell(row[9]) : '');
-                    const roomVal = colMapping.room !== undefined ? normalizeCell(row[colMapping.room]) : (row[7] ? normalizeCell(row[7]) : '');
-
-                    const profNameSanitized = cleanProfessorName(profVal);
-                    const dayVal = normalizeDay(dayValRaw);
-                    const timeVal = normalizeTimeRange(timeValRaw);
-                    const roomName = roomVal || 'TBA';
-
-                    const hasScheduleInfo = profNameSanitized && profNameSanitized.toLowerCase() !== 'tba' && profNameSanitized.toLowerCase() !== 'n/a';
-                    const loadKey = `${programName}|${defaultSemester}|${sectionName}|${subjectName}|${profNameSanitized || 'TBA'}|${dayVal || 'TBA'}|${timeVal || 'TBA'}|${roomName}`;
-                    if (loadKeysSet.has(loadKey)) {
+                    // Detect year level change rows (e.g. 'Second Year', 'Third Year', etc.)
+                    if (rowText.toLowerCase().includes('first year')) { currentYear = '1st Year'; continue; }
+                    if (rowText.toLowerCase().includes('second year')) { currentYear = '2nd Year'; continue; }
+                    if (rowText.toLowerCase().includes('third year')) { currentYear = '3rd Year'; continue; }
+                    if (rowText.toLowerCase().includes('fourth year')) { currentYear = '4th Year'; continue; }
+                    if (rowText.toUpperCase().includes('BACHELOR OF SCIENCE')) {
+                        currentProgram = mapProgramFromText(rowText);
                         continue;
                     }
-                    loadKeysSet.add(loadKey);
 
-                    let profName = hasScheduleInfo ? profNameSanitized : 'TBA';
-                    if (hasScheduleInfo) {
-                        let matchedProf = Array.from(facultyNamesSet).find(n => n.toLowerCase().includes(profName.toLowerCase()));
-                        if (matchedProf) {
-                            profName = matchedProf;
-                        } else if (!facultyNamesSet.has(profName)) {
-                            const id = `prof-${profName.toLowerCase().replace(/[^a-z]/g, '')}`;
-                            facultyToInsert.push({
-                                id,
-                                name: profName,
-                                base_designation: 'Instructor',
-                                program: programName,
-                                employment_type: 'Regular',
-                                classification: 'Regular',
-                                active: 1,
-                                baccalaureate: 'N/A',
-                                masters: 'N/A',
-                                nature_of_appointment: 'Full-Time',
-                                preferred_subjects: subjectName,
-                                preferred_times: ''
-                            });
-                            facultyNamesSet.add(profName);
+                    if (colMapping.prog !== undefined && row[colMapping.prog]) {
+                        currentProgram = mapProgramFromText(normalizeCell(row[colMapping.prog]));
+                    }
+                    if (colMapping.year !== undefined && row[colMapping.year]) {
+                        currentYear = cleanYearLevel(normalizeCell(row[colMapping.year]));
+                    }
+
+                    const rawSubCode = normalizeCell(row[colMapping.subCode]);
+                    const desc = colMapping.desc !== undefined ? normalizeCell(row[colMapping.desc]) : '';
+                    if (!rawSubCode && !desc) continue;
+                    if (rawSubCode.toLowerCase().includes('subject') || desc.toLowerCase().includes('description')) continue;
+
+                    const lecVal = colMapping.lec !== undefined ? parseFloat(String(row[colMapping.lec] || 0)) || 0 : 0;
+                    const labVal = colMapping.lab !== undefined ? parseFloat(String(row[colMapping.lab] || 0)) || 0 : 0;
+                    let unitsVal = colMapping.units !== undefined ? parseFloat(String(row[colMapping.units] || (lecVal + labVal))) : (lecVal + labVal);
+                    if (!unitsVal || isNaN(unitsVal)) unitsVal = lecVal + labVal || 3;
+
+                    const subCode = rawSubCode.replace(/\s+/g, ' ');
+                    const subjectName = subCode && desc ? `${subCode} - ${desc}` : (subCode || desc);
+
+                    const sectionName = colMapping.sec !== undefined ? normalizeCell(row[colMapping.sec]) : '';
+                    if (sectionName) {
+                        const secPrefix = sectionName.split(' ')[0].toUpperCase().trim();
+                        let secProg = currentProgram;
+                        if (secPrefix.startsWith('BSIT')) secProg = 'Information Technology';
+                        else if (secPrefix.startsWith('BSCP') || secPrefix.startsWith('BSCPE')) secProg = 'Computer Engineering';
+                        else if (secPrefix.startsWith('BSHM')) secProg = 'Hospitality Management';
+                        else if (secPrefix.startsWith('BSOA')) secProg = 'Office Administration';
+
+                        const sectionKey = `${secProg}::${sectionName}`;
+                        if (!sectionKeysSet.has(sectionKey)) {
+                            sectionsToInsert.push({ program_name: secProg, section_name: sectionName });
+                            sectionKeysSet.add(sectionKey);
                         }
                     }
 
-                    if (!roomNamesSet.has(roomName) && roomName !== 'TBA') {
-                        let building = 'Main Building';
-                        if (roomName.startsWith('NB-') || roomName.includes('NB')) building = 'New Building';
-                        roomsToInsert.push({ name: roomName, building });
-                        roomNamesSet.add(roomName);
+                    const subjectKey = `${currentProgram}::${currentYear}::${currentSemester}::${subjectName}`;
+                    if (!subjectKeysSet.has(subjectKey)) {
+                        subjectsToInsert.push({
+                            program_name: currentProgram,
+                            year_level: currentYear,
+                            semester: currentSemester,
+                            subject_name: subjectName,
+                            lec_units: lecVal,
+                            lab_units: labVal,
+                            units: unitsVal,
+                            is_bridging: isBridgingSheet ? 1 : 0
+                        });
+                        subjectKeysSet.add(subjectKey);
                     }
-
-                    loadsToInsert.push({
-                        id: Date.now() + loadsToInsert.length,
-                        prof: profName,
-                        sub: subjectName,
-                        units: unitsVal,
-                        load_type: 'Regular Load',
-                        sec: sectionName,
-                        room: roomName,
-                        building: roomName === 'TBA' ? 'TBA' : (roomName.startsWith('NB-') || roomName.includes('NB') ? 'New Building' : 'Main Building'),
-                        day: dayVal || 'TBA',
-                        time: timeVal || 'TBA',
-                        sy: 'A.Y. 2024-2025',
-                        program: programName,
-                        semester: defaultSemester === '2nd Semester' ? '2' : '1'
-                    });
                 }
             }
         }
@@ -510,13 +516,6 @@ app.post('/api/scan-system-files', async (req, res) => {
         // ----------------------------------------------------
         // D. Commit to Database inside Transaction
         // ----------------------------------------------------
-        // Truncate tables to ensure exact replication
-        await trx('loads').del();
-        await trx('program_subjects').del();
-        await trx('program_sections').del();
-        await trx('faculty').del();
-        await trx('rooms').del();
-
         // Standard Programs seed
         const standardPrograms = [
             { name: 'Information Technology' },
@@ -528,20 +527,24 @@ app.post('/api/scan-system-files', async (req, res) => {
         await trx('programs').insert(standardPrograms).onConflict('name').merge();
 
         if (roomsToInsert.length > 0) {
+            await trx('rooms').del();
             await trx('rooms').insert(roomsToInsert);
         }
         if (facultyToInsert.length > 0) {
+            await trx('faculty').del();
             await trx('faculty').insert(facultyToInsert);
         }
         if (sectionsToInsert.length > 0) {
+            await trx('program_sections').del();
             await trx('program_sections').insert(sectionsToInsert);
         }
         if (subjectsToInsert.length > 0) {
+            await trx('program_subjects').del();
             await trx('program_subjects').insert(subjectsToInsert);
         }
-        if (loadsToInsert.length > 0) {
-            await trx('loads').insert(loadsToInsert);
-        }
+
+        // NOTE: LOADS ARE NEVER GENERATED OR MODIFIED DURING FILE IMPORT!
+        // Loads are created exclusively during the faculty loading / scheduling process.
 
         await trx.commit();
         res.json({
@@ -551,7 +554,7 @@ app.post('/api/scan-system-files', async (req, res) => {
                 faculty: facultyToInsert.length,
                 sections: sectionsToInsert.length,
                 subjects: subjectsToInsert.length,
-                loads: loadsToInsert.length
+                loads: 0
             }
         });
     } catch (err) {
@@ -561,8 +564,12 @@ app.post('/api/scan-system-files', async (req, res) => {
     }
 });
 
-// Start Server
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-    console.log(`PUP PQ Workload API server running on port ${PORT}`);
-});
+// Start Server if run directly
+if (require.main === module) {
+    const PORT = process.env.PORT || 5002;
+    app.listen(PORT, () => {
+        console.log(`PUP PQ Workload API server running on port ${PORT}`);
+    });
+}
+
+module.exports = app;

@@ -1,0 +1,43 @@
+{
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "hosting": {
+    "public": "public",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "/api/**",
+        "function": {
+          "functionId": "api",
+          "region": "asia-southeast1"
+        }
+      }
+    ]
+  },
+  "functions": [
+    {
+      "source": ".",
+      "codebase": "pupwms",
+      "ignore": [
+        "Frontend/**",
+        "JS/**",
+        "style/**",
+        "public/**",
+        "reference/**",
+        "postman/**",
+        "system_excel_format/**",
+        ".git/**",
+        "node_modules/**",
+        "*.sql",
+        "*.md",
+        "*.txt"
+      ]
+    }
+  ]
+}

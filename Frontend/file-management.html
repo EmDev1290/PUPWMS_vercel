@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
@@ -116,7 +116,7 @@
                             <i data-lucide="refresh-cw" class="w-5 h-5 text-[#7f0000]"></i>Sync Database
                         </h3>
                         <p class="text-xs text-slate-500 mb-6 leading-relaxed">
-                            Scanning parses all active spreadsheets inside the central folder to reconstruct the database tables. Any active schedules, faculty profiles, and rooms will be rebuilt.
+                            Scanning parses active spreadsheets inside the central folder to update faculty profiles, course curriculum (subjects, units, lec/lab), sections, and rooms. Schedules and faculty loading remain untouched for the scheduling process.
                         </p>
                         
                         <div class="bg-slate-50 rounded-2xl p-4 mb-6">
@@ -319,8 +319,10 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    showBanner(`File "${file.name}" uploaded successfully!`, 'success');
-                    loadFilesList();
+                    showBanner(`File "${file.name}" uploaded! Syncing data into database...`, 'info');
+                    await loadFilesList();
+                    // Automatically trigger database scan so the uploaded file's data is imported immediately
+                    await triggerDatabaseScan();
                 } else {
                     showBanner(data.error || 'Upload failed', 'error');
                 }
@@ -388,7 +390,7 @@
                     localStorage.setItem('last_database_sync', timeStr);
                     document.getElementById('last-sync-time').textContent = timeStr;
                     
-                    showBanner(`Sync complete! Loaded: ${data.summary.faculty} Instructors, ${data.summary.rooms} Rooms, ${data.summary.subjects} Curriculum Subjects, ${data.summary.loads} Assigned Schedules.`, 'success');
+                    showBanner(`Sync complete! Loaded: ${data.summary.faculty} Instructors, ${data.summary.rooms} Rooms, ${data.summary.subjects} Curriculum Subjects across ${data.summary.sections} Sections. Loads remain preserved for the loading process.`, 'success');
                 } else {
                     showBanner(data.error || 'Scan parsing failed', 'error');
                 }

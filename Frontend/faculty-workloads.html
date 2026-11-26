@@ -123,7 +123,13 @@
                             <i data-lucide="download" class="w-3.5 h-3.5"></i>Export Reports
                             <i data-lucide="chevron-down" class="w-3 h-3"></i>
                         </button>
-                        <div class="absolute right-0 hidden group-hover:block bg-white border border-slate-200 rounded-xl shadow-lg z-50 py-1 w-64 max-h-96 overflow-y-auto">
+                        <div class="absolute right-0 hidden group-hover:block bg-white border border-slate-200 rounded-xl shadow-lg z-50 py-1 w-72 max-h-96 overflow-y-auto">
+                            <!-- One Sheet Summary Section -->
+                            <div class="px-4 py-1 text-[10px] font-bold text-emerald-700 uppercase tracking-wider bg-emerald-50/70">Workload & Rates (1 Sheet)</div>
+                            <button onclick="exportFacultyWorkloadSummarySheet()" class="block w-full text-left px-4 py-2.5 text-xs hover:bg-slate-100 text-emerald-950 font-bold flex items-center gap-2"><span>📊 All Faculty Summary & Rates (One Sheet)</span></button>
+
+                            <div class="border-t border-slate-100 my-1"></div>
+
                             <!-- Workload Section -->
                             <div class="px-4 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Faculty Workload</div>
                             <button onclick="exportFacultyWorkloadReport()" class="block w-full text-left px-4 py-2 text-xs hover:bg-slate-100 text-slate-700 font-medium">📋 All Faculty Workload</button>
@@ -157,6 +163,9 @@
                     </button>
                     <button onclick="openEmailWorkloadModal()" class="px-4 py-2.5 bg-blue-700 text-white rounded-xl text-xs font-bold hover:bg-blue-800 shadow transition flex items-center gap-1.5">
                         <i data-lucide="mail" class="w-3.5 h-3.5"></i>Email Workload
+                    </button>
+                    <button onclick="openEmailAllFacultyWorkloadsModal()" class="px-4 py-2.5 bg-emerald-700 text-white rounded-xl text-xs font-bold hover:bg-emerald-800 shadow transition flex items-center gap-1.5" title="Email all faculty who have an email in their profile">
+                        <i data-lucide="send" class="w-3.5 h-3.5"></i>Email All Faculty
                     </button>
                 </div>
             </div>

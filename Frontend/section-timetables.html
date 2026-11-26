@@ -95,15 +95,15 @@
                 </div>
             </div>
             <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 mt-6">
-                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                    <div class="flex flex-wrap gap-4 items-center">
+                <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
+                    <div class="flex flex-wrap sm:flex-nowrap items-end gap-3">
                         <div>
                             <label for="sy-selector" class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Academic Year</label>
-                            <select id="sy-selector" onchange="renderTimetable()" class="p-2.5 border rounded-xl w-40 text-sm bg-gray-50 outline-none font-semibold text-slate-700"></select>
+                            <select id="sy-selector" onchange="renderTimetable()" class="p-2.5 border rounded-xl w-32 sm:w-36 text-xs bg-gray-50 outline-none font-semibold text-slate-700"></select>
                         </div>
                         <div>
                             <label for="semester-selector" class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Semester</label>
-                            <select id="semester-selector" onchange="renderTimetable()" class="p-2.5 border rounded-xl w-40 text-sm bg-gray-50 outline-none font-semibold text-slate-700">
+                            <select id="semester-selector" onchange="renderTimetable()" class="p-2.5 border rounded-xl w-32 sm:w-36 text-xs bg-gray-50 outline-none font-semibold text-slate-700">
                                 <option value="All">All Semesters</option>
                                 <option value="1">1st Semester</option>
                                 <option value="2">2nd Semester</option>
@@ -112,17 +112,20 @@
                         </div>
                         <div>
                             <label for="view-section-select" class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Select Section</label>
-                            <select id="view-section-select" onchange="renderTimetable()" class="p-2.5 border rounded-xl w-40 text-sm bg-gray-50 outline-none font-semibold text-slate-700"></select>
+                            <select id="view-section-select" onchange="renderTimetable()" class="p-2.5 border rounded-xl w-36 sm:w-40 text-xs bg-gray-50 outline-none font-semibold text-slate-700"></select>
                         </div>
                     </div>
-                    <div class="flex items-center gap-2">
-                        <button onclick="exportSectionTimetable()" class="px-4 py-3 border-2 border-[#7f0000] text-[#7f0000] rounded-2xl text-xs font-bold hover:bg-[#fef2f2] flex items-center">
-                            <i data-lucide="download-cloud" class="w-4 h-4 mr-2"></i>Export Section Schedule
+                    <div class="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                        <button onclick="exportSectionTimetable()" class="px-3.5 py-2.5 border border-[#7f0000] text-[#7f0000] rounded-xl text-xs font-bold hover:bg-[#fef2f2] inline-flex items-center gap-1.5 whitespace-nowrap shadow-xs" title="Export Current Section Timetable to Excel">
+                            <i data-lucide="download-cloud" class="w-3.5 h-3.5"></i>Export Schedule
                         </button>
-                        <button onclick="exportAllSectionTimetables()" class="px-4 py-3 bg-[#7f0000] text-white rounded-2xl text-xs font-bold hover:bg-[#660000] flex items-center shadow-xs">
-                            <i data-lucide="layers" class="w-4 h-4 mr-2"></i>Export Section Schedule (All)
+                        <button onclick="exportAllSectionTimetables()" class="px-3.5 py-2.5 bg-[#7f0000] text-white rounded-xl text-xs font-bold hover:bg-[#660000] inline-flex items-center gap-1.5 whitespace-nowrap shadow-xs" title="Export All Section Timetables to Excel">
+                            <i data-lucide="layers" class="w-3.5 h-3.5"></i>Export All
                         </button>
-                        <button onclick="toggleCalendarFullscreen('sections')" class="w-10 h-10 rounded-2xl border border-slate-300 text-slate-700 hover:bg-slate-100 flex items-center justify-center">
+                        <button onclick="openEmailSectionModal()" class="px-3.5 py-2.5 bg-blue-700 text-white rounded-xl text-xs font-bold hover:bg-blue-800 shadow-xs transition inline-flex items-center gap-1.5 whitespace-nowrap" title="Email Section Timetable to Class President">
+                            <i data-lucide="mail" class="w-3.5 h-3.5"></i>Email Timetable
+                        </button>
+                        <button onclick="toggleCalendarFullscreen('sections')" class="h-[38px] w-[38px] rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 flex items-center justify-center shrink-0" title="Toggle Fullscreen">
                             <i data-lucide="maximize" class="w-4 h-4"></i>
                         </button>
                     </div>
@@ -133,6 +136,7 @@
     </div>
 
     <script src="../JS/tempDatabase.js"></script>
+    <script src="../JS/app.modal.js"></script>
     <script src="../JS/app.common.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
     <script src="../JS/app.excel-export.js"></script>

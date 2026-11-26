@@ -23,9 +23,42 @@ const getYearLevelForSection = section => {
 const isValidSemester = value => ['1', '2', '1st Semester', '2nd Semester', 'Summer Term', 'Bridging'].includes(String(value));
 const isValidId = value => /^\d+$/.test(String(value));
 
+const normalizeProgramCode = name => {
+    if (!name) return '';
+    const s = String(name).toUpperCase().trim();
+    if (s.includes('INFORMATION TECHNOLOGY') || s === 'BSIT' || s === 'IT') return 'BSIT';
+    if (s.includes('COMPUTER ENGINEERING') || s === 'BSCPE' || s === 'BSCP' || s === 'COE' || s === 'CPE') return 'BSCPE';
+    if (s.includes('HOSPITALITY') || s === 'BSHM' || s === 'HM') return 'BSHM';
+    if (s.includes('OFFICE ADMINISTRATION') || s === 'BSOA' || s === 'OA') return 'BSOA';
+    if (s.includes('GENERAL EDUCATION') || s.includes('GEN-ED') || s.includes('GEN ED') || s === 'GENED') return 'GEN-ED';
+    return s;
+};
+
+const matchesProgram = (assignedProgStr, targetProg) => {
+    if (!assignedProgStr || !targetProg) return false;
+    const targetCode = normalizeProgramCode(targetProg);
+    const assignedCodes = String(assignedProgStr).split(',').map(p => normalizeProgramCode(p.trim()));
+    return assignedCodes.includes(targetCode);
+};
+
 // 1. Initial State
 exports.getInitialState = async (req, res) => {
     try {
+        try {
+            const hasRateDay = await knex.schema.hasColumn('faculty', 'rate_per_day');
+            if (!hasRateDay) {
+                await knex.schema.alterTable('faculty', t => t.decimal('rate_per_day', 12, 2).defaultTo(0.00));
+            }
+            const hasRateMonth = await knex.schema.hasColumn('faculty', 'rate_per_month');
+            if (!hasRateMonth) {
+                await knex.schema.alterTable('faculty', t => t.decimal('rate_per_month', 12, 2).defaultTo(0.00));
+            }
+            const hasRateHour = await knex.schema.hasColumn('faculty', 'rate_per_hour');
+            if (!hasRateHour) {
+                await knex.schema.alterTable('faculty', t => t.decimal('rate_per_hour', 12, 2).defaultTo(0.00));
+            }
+        } catch (schemaErr) {}
+
         const roomRows = await knex('rooms').select('*');
         const facultyRows = await knex('faculty').select('*');
         const syRows = await knex('school_years').select('*');
@@ -43,7 +76,7 @@ exports.getInitialState = async (req, res) => {
             employmentType: row.employment_type || '',
             classification: row.classification || '',
             classificationRank: row.classification_rank || '',
-            active: !!row.active,
+            active: row.active === 0 || row.active === false || row.active === '0' || row.active === 'false' ? false : true,
             educationalAttainment: {
                 baccalaureate: row.baccalaureate || '',
                 masters: row.masters || '',
@@ -69,7 +102,10 @@ exports.getInitialState = async (req, res) => {
             natureOfAppointment: row.nature_of_appointment || '',
             preferredSubjects: row.preferred_subjects || '',
             preferredTimes: row.preferred_times || '',
-            remarks: row.remarks || ''
+            remarks: row.remarks || '',
+            ratePerDay: row.rate_per_day !== undefined && row.rate_per_day !== null ? Number(row.rate_per_day) : 0,
+            ratePerMonth: row.rate_per_month !== undefined && row.rate_per_month !== null ? Number(row.rate_per_month) : 0,
+            ratePerHour: row.rate_per_hour !== undefined && row.rate_per_hour !== null ? Number(row.rate_per_hour) : 0
         }));
 
         const schoolYears = syRows.map(r => r.name);
@@ -80,11 +116,7 @@ exports.getInitialState = async (req, res) => {
         progRows.forEach(p => {
             const progName = p.name;
             const sections = sectionRows.filter(s => s.program_name === progName).map(s => s.section_name);
-            const profs = facultyRows.filter(f => {
-                if (!f.program) return false;
-                const programsList = f.program.split(',').map(s => s.trim());
-                return programsList.includes(progName);
-            }).map(f => f.name);
+            const profs = facultyRows.filter(f => matchesProgram(f.program, progName)).map(f => f.name);
 
             const subjects = {};
             const bridgingSubjects = [];
@@ -266,9 +298,36 @@ exports.createFaculty = async (req, res) => {
                 // Table alteration might be constrained in some environments
             }
         }
+        const hasRateDayCol = await knex.schema.hasColumn('faculty', 'rate_per_day');
+        if (!hasRateDayCol) {
+            try {
+                await knex.schema.alterTable('faculty', t => t.decimal('rate_per_day', 12, 2).defaultTo(0.00));
+            } catch (colErr) {}
+        }
+        const hasRateMonthCol = await knex.schema.hasColumn('faculty', 'rate_per_month');
+        if (!hasRateMonthCol) {
+            try {
+                await knex.schema.alterTable('faculty', t => t.decimal('rate_per_month', 12, 2).defaultTo(0.00));
+            } catch (colErr) {}
+        }
+        const hasRateHourCol = await knex.schema.hasColumn('faculty', 'rate_per_hour');
+        if (!hasRateHourCol) {
+            try {
+                await knex.schema.alterTable('faculty', t => t.decimal('rate_per_hour', 12, 2).defaultTo(0.00));
+            } catch (colErr) {}
+        }
         const colInfo = await knex('faculty').columnInfo();
         if (colInfo.email) {
             mapped.email = f.email ? String(f.email).trim() : '';
+        }
+        if (colInfo.rate_per_day) {
+            mapped.rate_per_day = f.ratePerDay !== undefined && f.ratePerDay !== '' ? parseFloat(f.ratePerDay) || 0 : 0;
+        }
+        if (colInfo.rate_per_month) {
+            mapped.rate_per_month = f.ratePerMonth !== undefined && f.ratePerMonth !== '' ? parseFloat(f.ratePerMonth) || 0 : 0;
+        }
+        if (colInfo.rate_per_hour) {
+            mapped.rate_per_hour = f.ratePerHour !== undefined && f.ratePerHour !== '' ? parseFloat(f.ratePerHour) || 0 : 0;
         }
         await knex('faculty').insert(mapped).onConflict('id').merge();
         res.json({ success: true });

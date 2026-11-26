@@ -363,6 +363,32 @@
         return starts.length;
     }
 
+    async function resolveSignatories() {
+        if (typeof apiFetch === 'function') {
+            try {
+                const settings = await apiFetch('/api/settings');
+                if (settings) {
+                    window.systemSettings = { ...(window.systemSettings || {}), ...settings };
+                    if (settings.signatory_prepared_by) localStorage.setItem('signatory_prepared_by', settings.signatory_prepared_by);
+                    if (settings.signatory_noted_by) localStorage.setItem('signatory_noted_by', settings.signatory_noted_by);
+                }
+            } catch (_) {}
+        }
+    }
+
+    function getSignatoryNames() {
+        const prep = (window.systemSettings && window.systemSettings.signatory_prepared_by)
+            || (typeof localStorage !== 'undefined' && localStorage.getItem('signatory_prepared_by'))
+            || 'Jefferson F. Serrano';
+        const noted = (window.systemSettings && window.systemSettings.signatory_noted_by)
+            || (typeof localStorage !== 'undefined' && localStorage.getItem('signatory_noted_by'))
+            || 'Prof. Jaime P. Gutierrez Jr.';
+        return {
+            preparedBy: prep,
+            notedBy: noted
+        };
+    }
+
     function appendSignatureBlock(worksheet, signatureRow, firstDataColumn) {
         const midpoint = firstDataColumn + 3;
         worksheet.mergeCells(signatureRow, firstDataColumn, signatureRow, midpoint);
@@ -373,10 +399,9 @@
         worksheet.mergeCells(signatureRow + 3, midpoint + 1, signatureRow + 3, firstDataColumn + 7);
         worksheet.getCell(signatureRow, firstDataColumn).value = 'Prepared By:';
         worksheet.getCell(signatureRow, midpoint + 1).value = 'Noted By:';
-        const prepName = window.systemSettings?.signatory_prepared_by || localStorage.getItem('signatory_prepared_by') || 'Jefferson F. Serrano';
-        const notedName = window.systemSettings?.signatory_noted_by || localStorage.getItem('signatory_noted_by') || 'Prof. Jaime P. Gutierrez Jr.';
-        worksheet.getCell(signatureRow + 2, firstDataColumn).value = prepName;
-        worksheet.getCell(signatureRow + 2, midpoint + 1).value = notedName;
+        const sigs = getSignatoryNames();
+        worksheet.getCell(signatureRow + 2, firstDataColumn).value = sigs.preparedBy;
+        worksheet.getCell(signatureRow + 2, midpoint + 1).value = sigs.notedBy;
         worksheet.getCell(signatureRow + 3, firstDataColumn).value = 'Head, Academic Programs';
         worksheet.getCell(signatureRow + 3, midpoint + 1).value = 'Campus Director';
         [signatureRow, signatureRow + 2, signatureRow + 3].forEach(rowNumber => {
@@ -521,6 +546,7 @@
 
     async function buildFacultyWorkloadWorkbookBuffer(profName) {
         if (!ensureExcelJS()) return null;
+        await resolveSignatories();
         const context = selectedContext();
         const program = document.getElementById('workload-program-filter')?.value || 'All';
         const faculty = facultyRegistry.find(entry => entry.name === profName);
@@ -545,7 +571,8 @@
         return btoa(binary);
     }
 
-    function exportFacultyWorkload(profName) {
+    async function exportFacultyWorkload(profName) {
+        await resolveSignatories();
         const context = selectedContext();
         const program = document.getElementById('workload-program-filter')?.value || 'All';
         const faculty = facultyRegistry.find(entry => entry.name === profName);
@@ -559,8 +586,9 @@
         exportScheduleWorkbook(`PROF. (${facultyLabel}) SCHEDULE`, `${context.semesterLabel.toUpperCase()} AY ${context.schoolYear}`, loads, 'faculty', `Faculty_Workload_${profName}_${context.schoolYear}`, 1, category);
     }
 
-    function exportFacultyWorkloadReport() {
+    async function exportFacultyWorkloadReport() {
         if (!ensureExcelJS()) return;
+        await resolveSignatories();
         const context = selectedContext();
         const program = document.getElementById('workload-program-filter')?.value || 'All';
         const loads = filteredLoads(load => load.sy === context.schoolYear
@@ -607,9 +635,10 @@
         saveWorkbook(workbook, `Faculty_Workload_Report_${context.schoolYear}`);
     }
 
-    function exportFacultyWorkloadCategory(category) {
+    async function exportFacultyWorkloadCategory(category) {
         if (!ensureExcelJS()) return;
         if (!['designee', 'regular', 'part-time'].includes(category)) return;
+        await resolveSignatories();
 
         const context = selectedContext();
         const program = document.getElementById('workload-program-filter')?.value || 'All';
@@ -654,6 +683,486 @@
 
         const categoryFilename = category === 'part-time' ? 'Part_Time' : category[0].toUpperCase() + category.slice(1);
         saveWorkbook(workbook, `${categoryFilename}_Faculty_Workloads_${context.schoolYear}`);
+    }
+
+    async function exportFacultyWorkloadSummarySheet() {
+        if (!ensureExcelJS()) return;
+        await resolveSignatories();
+        const context = selectedContext();
+
+        const allFaculty = Array.isArray(facultyRegistry) ? facultyRegistry : [];
+        if (!allFaculty.length) {
+            return showBanner('No faculty profiles found to export.', 'error');
+        }
+
+        const workbook = new ExcelJS.Workbook();
+        const sheetTitle = 'Faculty Workload & Rates';
+        const worksheet = workbook.addWorksheet(sheetTitle, {
+            pageSetup: {
+                orientation: 'landscape',
+                paperSize: 9, // A4
+                fitToPage: true,
+                fitToWidth: 1,
+                fitToHeight: 0
+            },
+            views: [{ showGridLines: true }]
+        });
+
+        // 7 Columns
+        const columnWidths = [8, 38, 22, 18, 18, 22, 22];
+        columnWidths.forEach((w, i) => {
+            worksheet.getColumn(i + 1).width = w;
+        });
+
+        const MAROON = 'FF7F0000';
+        const WHITE = 'FFFFFFFF';
+        const LIGHT_GRAY = 'FFF8FAFC';
+        const BORDER_COLOR = 'FFE2E8F0';
+
+        function summaryBorder(color = BORDER_COLOR) {
+            return {
+                top: { style: 'thin', color: { argb: color } },
+                left: { style: 'thin', color: { argb: color } },
+                bottom: { style: 'thin', color: { argb: color } },
+                right: { style: 'thin', color: { argb: color } }
+            };
+        }
+
+        // Header Block
+        // Row 1: Institutional title
+        worksheet.mergeCells(1, 1, 1, 7);
+        const r1 = worksheet.getCell(1, 1);
+        r1.value = 'POLYTECHNIC UNIVERSITY OF THE PHILIPPINES';
+        r1.font = { name: 'Calibri', size: 12, bold: true, color: { argb: 'FF1E293B' } };
+        r1.alignment = { horizontal: 'center', vertical: 'middle' };
+        worksheet.getRow(1).height = 20;
+
+        // Row 2: Campus
+        worksheet.mergeCells(2, 1, 2, 7);
+        const r2 = worksheet.getCell(2, 1);
+        r2.value = 'PARAÑAQUE CITY CAMPUS';
+        r2.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF475569' } };
+        r2.alignment = { horizontal: 'center', vertical: 'middle' };
+        worksheet.getRow(2).height = 18;
+
+        // Row 3: Report Title
+        worksheet.mergeCells(3, 1, 3, 7);
+        const r3 = worksheet.getCell(3, 1);
+        r3.value = 'FACULTY WORKLOAD & RATE SUMMARY REPORT';
+        r3.font = { name: 'Calibri', size: 14, bold: true, color: { argb: MAROON } };
+        r3.alignment = { horizontal: 'center', vertical: 'middle' };
+        worksheet.getRow(3).height = 24;
+
+        // Row 4: Subtitle (Semester & Academic Year)
+        worksheet.mergeCells(4, 1, 4, 7);
+        const r4 = worksheet.getCell(4, 1);
+        r4.value = `${context.semesterLabel.toUpperCase()} AY ${context.schoolYear} • ALL FACULTY`;
+        r4.font = { name: 'Calibri', size: 10, italic: true, color: { argb: 'FF64748B' } };
+        r4.alignment = { horizontal: 'center', vertical: 'middle' };
+        worksheet.getRow(4).height = 18;
+
+        // Row 5: Blank separator
+        worksheet.getRow(5).height = 8;
+
+        // Row 6: Table Headers
+        const headers = [
+            'NO.',
+            'PROFESSOR NAME',
+            'REGULAR LOAD\n(UNITS)',
+            'PT LOAD\n(UNITS)',
+            'TS LOAD\n(UNITS)',
+            'TOTAL LOADS\n(UNITS)',
+            'RATE / DAY\n(PHP)'
+        ];
+
+        const headerRow = worksheet.getRow(6);
+        headerRow.height = 32;
+        headers.forEach((label, idx) => {
+            const cell = headerRow.getCell(idx + 1);
+            cell.value = label;
+            cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: WHITE } };
+            cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: MAROON } };
+            cell.border = summaryBorder('FF4C0000');
+        });
+
+        // Helper to categorize faculty
+        function classifyFaculty(f) {
+            const classification = String(f?.classification || '').toLowerCase();
+            const employment = String(f?.employmentType || '').toLowerCase();
+            const designation = String(f?.baseDesignation || '').toLowerCase();
+
+            if (classification.includes('designee') || designation.includes('director') || designation.includes('head') || designation.includes('chair')) {
+                return 'designee';
+            }
+            if (classification.includes('part') || employment.includes('part')) {
+                return 'part-time';
+            }
+            return 'regular';
+        }
+
+        // Partition faculty into 3 groups
+        const designeeList = allFaculty.filter(f => classifyFaculty(f) === 'designee')
+            .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        const regularList = allFaculty.filter(f => classifyFaculty(f) === 'regular')
+            .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        const partTimeList = allFaculty.filter(f => classifyFaculty(f) === 'part-time')
+            .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+        const sections = [
+            {
+                key: 'designee',
+                title: 'DESIGNEE FACULTY',
+                bgColor: 'FF1E293B',
+                hasRegular: true,
+                list: designeeList
+            },
+            {
+                key: 'regular',
+                title: 'REGULAR FACULTY',
+                bgColor: 'FF800000',
+                hasRegular: true,
+                list: regularList
+            },
+            {
+                key: 'part-time',
+                title: 'PART TIME FACULTY',
+                bgColor: 'FF334155',
+                hasRegular: false,
+                list: partTimeList
+            }
+        ];
+
+        let currentRowNumber = 7;
+        let globalIndex = 0;
+
+        // Grand totals accumulators
+        let grandRegular = 0;
+        let grandPt = 0;
+        let grandTs = 0;
+        let grandTotal = 0;
+        let grandRateDay = 0;
+        let grandCount = 0;
+
+        sections.forEach(section => {
+            // Section Header Banner
+            const bannerRow = worksheet.getRow(currentRowNumber);
+            bannerRow.height = 24;
+            worksheet.mergeCells(currentRowNumber, 1, currentRowNumber, 7);
+            const bannerCell = bannerRow.getCell(1);
+            bannerCell.value = section.title;
+            bannerCell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: WHITE } };
+            bannerCell.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+            for (let c = 1; c <= 7; c++) {
+                const cell = bannerRow.getCell(c);
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: section.bgColor } };
+                cell.border = summaryBorder('FF0F172A');
+            }
+            currentRowNumber++;
+
+            if (!section.list.length) {
+                const emptyRow = worksheet.getRow(currentRowNumber);
+                emptyRow.height = 20;
+                worksheet.mergeCells(currentRowNumber, 1, currentRowNumber, 7);
+                const emptyCell = emptyRow.getCell(1);
+                emptyCell.value = 'No faculty members found under this classification';
+                emptyCell.font = { name: 'Calibri', size: 9, italic: true, color: { argb: 'FF94A3B8' } };
+                emptyCell.alignment = { horizontal: 'center', vertical: 'middle' };
+                for (let c = 1; c <= 7; c++) {
+                    const cell = emptyRow.getCell(c);
+                    cell.border = summaryBorder();
+                }
+                currentRowNumber++;
+                return;
+            }
+
+            let secRegular = 0;
+            let secPt = 0;
+            let secTs = 0;
+            let secTotal = 0;
+            let secRateDay = 0;
+
+            section.list.forEach((faculty, secIndex) => {
+                globalIndex++;
+                const row = worksheet.getRow(currentRowNumber);
+                row.height = 22;
+
+                const loads = filteredLoads(load =>
+                    load.prof === faculty.name &&
+                    load.sy === context.schoolYear &&
+                    isMatchingSemester(load, context.semester)
+                );
+
+                let regUnits = 0;
+                let ptUnits = 0;
+                let tsUnits = 0;
+                let totalUnits = 0;
+
+                loads.forEach(load => {
+                    const u = Number(load.units) || 0;
+                    totalUnits += u;
+                    const lt = String(load.loadType || '').toLowerCase();
+                    if (lt.includes('regular')) {
+                        regUnits += u;
+                    } else if (lt.includes('part')) {
+                        ptUnits += u;
+                    } else if (lt.includes('temporary') || lt.includes('substitute')) {
+                        tsUnits += u;
+                    } else {
+                        regUnits += u;
+                    }
+                });
+
+                const rateDay = Number(faculty.ratePerDay) || 0;
+
+                if (section.hasRegular) {
+                    secRegular += regUnits;
+                    grandRegular += regUnits;
+                }
+                secPt += ptUnits;
+                secTs += tsUnits;
+                secTotal += totalUnits;
+                secRateDay += rateDay;
+
+                grandPt += ptUnits;
+                grandTs += tsUnits;
+                grandTotal += totalUnits;
+                grandRateDay += rateDay;
+                grandCount++;
+
+                const isEven = secIndex % 2 === 1;
+                const rowBg = isEven ? LIGHT_GRAY : WHITE;
+
+                // Col 1: NO.
+                const c1 = row.getCell(1);
+                c1.value = globalIndex;
+                c1.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF64748B' } };
+                c1.alignment = { horizontal: 'center', vertical: 'middle' };
+
+                // Col 2: PROFESSOR NAME
+                const c2 = row.getCell(2);
+                c2.value = String(faculty.name || '').toUpperCase();
+                c2.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF0F172A' } };
+                c2.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+                // Col 3: REGULAR LOAD (UNITS)
+                // Designee and Regular have regular load; Part-time does not
+                const c3 = row.getCell(3);
+                if (section.hasRegular) {
+                    c3.value = regUnits;
+                    c3.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF065F46' } };
+                    c3.alignment = { horizontal: 'center', vertical: 'middle' };
+                    if (regUnits > 0) {
+                        c3.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } };
+                    }
+                } else {
+                    c3.value = '-';
+                    c3.font = { name: 'Calibri', size: 10, italic: true, color: { argb: 'FF94A3B8' } };
+                    c3.alignment = { horizontal: 'center', vertical: 'middle' };
+                }
+
+                // Col 4: PT LOAD (UNITS)
+                const c4 = row.getCell(4);
+                c4.value = ptUnits;
+                c4.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF1E40AF' } };
+                c4.alignment = { horizontal: 'center', vertical: 'middle' };
+                if (ptUnits > 0) {
+                    c4.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDBEAFE' } };
+                }
+
+                // Col 5: TS LOAD (UNITS)
+                const c5 = row.getCell(5);
+                c5.value = tsUnits;
+                c5.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF92400E' } };
+                c5.alignment = { horizontal: 'center', vertical: 'middle' };
+                if (tsUnits > 0) {
+                    c5.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } };
+                }
+
+                // Col 6: TOTAL LOADS (UNITS)
+                const c6 = row.getCell(6);
+                c6.value = totalUnits;
+                c6.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF000000' } };
+                c6.alignment = { horizontal: 'center', vertical: 'middle' };
+                if (totalUnits > 0) {
+                    c6.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
+                }
+
+                // Col 7: RATE / DAY
+                const c7 = row.getCell(7);
+                c7.value = rateDay;
+                c7.numFmt = '"₱"#,##0.00;[Red]("-₱"#,##0.00);"-"';
+                c7.font = { name: 'Calibri', size: 10, bold: rateDay > 0, color: { argb: rateDay > 0 ? 'FF065F46' : 'FF94A3B8' } };
+                c7.alignment = { horizontal: 'right', vertical: 'middle', indent: 1 };
+
+                for (let c = 1; c <= 7; c++) {
+                    const cell = row.getCell(c);
+                    cell.border = summaryBorder();
+                    if (!cell.fill) {
+                        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } };
+                    }
+                }
+                currentRowNumber++;
+            });
+
+            // Section Subtotal Row
+            const subtotalRow = worksheet.getRow(currentRowNumber);
+            subtotalRow.height = 22;
+            worksheet.mergeCells(currentRowNumber, 1, currentRowNumber, 2);
+            const subLabel = subtotalRow.getCell(1);
+            subLabel.value = `SUBTOTAL (${section.title.replace(/[^A-Z\s]/g, '').trim()})`;
+            subLabel.font = { name: 'Calibri', size: 9, bold: true, color: { argb: 'FF334155' } };
+            subLabel.alignment = { horizontal: 'right', vertical: 'middle', indent: 1 };
+
+            // Subtotal Regular
+            const sr3 = subtotalRow.getCell(3);
+            if (section.hasRegular) {
+                sr3.value = secRegular;
+                sr3.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF065F46' } };
+            } else {
+                sr3.value = '-';
+                sr3.font = { name: 'Calibri', size: 10, italic: true, color: { argb: 'FF94A3B8' } };
+            }
+            sr3.alignment = { horizontal: 'center', vertical: 'middle' };
+
+            // Subtotal PT
+            const sr4 = subtotalRow.getCell(4);
+            sr4.value = secPt;
+            sr4.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF1E40AF' } };
+            sr4.alignment = { horizontal: 'center', vertical: 'middle' };
+
+            // Subtotal TS
+            const sr5 = subtotalRow.getCell(5);
+            sr5.value = secTs;
+            sr5.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF92400E' } };
+            sr5.alignment = { horizontal: 'center', vertical: 'middle' };
+
+            // Subtotal Total
+            const sr6 = subtotalRow.getCell(6);
+            sr6.value = secTotal;
+            sr6.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF000000' } };
+            sr6.alignment = { horizontal: 'center', vertical: 'middle' };
+
+            // Subtotal Rate / Day
+            const sr7 = subtotalRow.getCell(7);
+            sr7.value = secRateDay;
+            sr7.numFmt = '"₱"#,##0.00;[Red]("-₱"#,##0.00);"-"';
+            sr7.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF065F46' } };
+            sr7.alignment = { horizontal: 'right', vertical: 'middle', indent: 1 };
+
+            for (let c = 1; c <= 7; c++) {
+                const cell = subtotalRow.getCell(c);
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+                cell.border = {
+                    top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+                    bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+                    left: { style: 'thin', color: { argb: BORDER_COLOR } },
+                    right: { style: 'thin', color: { argb: BORDER_COLOR } }
+                };
+            }
+            currentRowNumber++;
+        });
+
+        // Grand Summary / Overall Totals Row
+        const totalRow = worksheet.getRow(currentRowNumber);
+        totalRow.height = 26;
+        worksheet.mergeCells(currentRowNumber, 1, currentRowNumber, 2);
+        const grandLabel = totalRow.getCell(1);
+        grandLabel.value = 'OVERALL TOTALS / GRAND SUMMARY';
+        grandLabel.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF1E293B' } };
+        grandLabel.alignment = { horizontal: 'center', vertical: 'middle' };
+
+        // Col 3: Grand Regular
+        const gr3 = totalRow.getCell(3);
+        gr3.value = grandRegular;
+        gr3.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF065F46' } };
+        gr3.alignment = { horizontal: 'center', vertical: 'middle' };
+
+        // Col 4: Grand PT
+        const gr4 = totalRow.getCell(4);
+        gr4.value = grandPt;
+        gr4.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF1E40AF' } };
+        gr4.alignment = { horizontal: 'center', vertical: 'middle' };
+
+        // Col 5: Grand TS
+        const gr5 = totalRow.getCell(5);
+        gr5.value = grandTs;
+        gr5.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF92400E' } };
+        gr5.alignment = { horizontal: 'center', vertical: 'middle' };
+
+        // Col 6: Grand Total Loads
+        const gr6 = totalRow.getCell(6);
+        gr6.value = grandTotal;
+        gr6.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF000000' } };
+        gr6.alignment = { horizontal: 'center', vertical: 'middle' };
+
+        // Col 7: Grand Total Rate / Day
+        const gr7 = totalRow.getCell(7);
+        gr7.value = grandRateDay;
+        gr7.numFmt = '"₱"#,##0.00;[Red]("-₱"#,##0.00);"-"';
+        gr7.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF065F46' } };
+        gr7.alignment = { horizontal: 'right', vertical: 'middle', indent: 1 };
+
+        const doubleBottomBorder = {
+            top: { style: 'medium', color: { argb: 'FF1E293B' } },
+            left: { style: 'thin', color: { argb: BORDER_COLOR } },
+            bottom: { style: 'double', color: { argb: 'FF1E293B' } },
+            right: { style: 'thin', color: { argb: BORDER_COLOR } }
+        };
+
+        for (let c = 1; c <= 7; c++) {
+            const cell = totalRow.getCell(c);
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
+            cell.border = doubleBottomBorder;
+        }
+
+        // Official Signatory Block
+        const sigStartRow = currentRowNumber + 3;
+        const sigs = getSignatoryNames();
+
+        // Prepared by
+        worksheet.mergeCells(sigStartRow, 1, sigStartRow, 3);
+        worksheet.getCell(sigStartRow, 1).value = 'Prepared by:';
+        worksheet.getCell(sigStartRow, 1).font = { name: 'Calibri', size: 9, italic: true };
+
+        worksheet.mergeCells(sigStartRow + 2, 1, sigStartRow + 2, 3);
+        const prepName = worksheet.getCell(sigStartRow + 2, 1);
+        prepName.value = sigs.preparedBy;
+        prepName.font = { name: 'Calibri', size: 10, bold: true, underline: true };
+        prepName.alignment = { horizontal: 'center', vertical: 'middle' };
+
+        worksheet.mergeCells(sigStartRow + 3, 1, sigStartRow + 3, 3);
+        const prepTitle = worksheet.getCell(sigStartRow + 3, 1);
+        prepTitle.value = 'Head, Academic Programs';
+        prepTitle.font = { name: 'Calibri', size: 9 };
+        prepTitle.alignment = { horizontal: 'center', vertical: 'middle' };
+
+        // Noted by
+        worksheet.mergeCells(sigStartRow, 5, sigStartRow, 7);
+        worksheet.getCell(sigStartRow, 5).value = 'Noted by:';
+        worksheet.getCell(sigStartRow, 5).font = { name: 'Calibri', size: 9, italic: true };
+
+        worksheet.mergeCells(sigStartRow + 2, 5, sigStartRow + 2, 7);
+        const noteName = worksheet.getCell(sigStartRow + 2, 5);
+        noteName.value = sigs.notedBy;
+        noteName.font = { name: 'Calibri', size: 10, bold: true, underline: true };
+        noteName.alignment = { horizontal: 'center', vertical: 'middle' };
+
+        worksheet.mergeCells(sigStartRow + 3, 5, sigStartRow + 3, 7);
+        const noteTitle = worksheet.getCell(sigStartRow + 3, 5);
+        noteTitle.value = 'Campus Director';
+        noteTitle.font = { name: 'Calibri', size: 9 };
+        noteTitle.alignment = { horizontal: 'center', vertical: 'middle' };
+
+        worksheet.getRow(sigStartRow).height = 20;
+        worksheet.getRow(sigStartRow + 1).height = 14;
+        worksheet.getRow(sigStartRow + 2).height = 20;
+        worksheet.getRow(sigStartRow + 3).height = 18;
+
+        // Save
+        const fileName = `Faculty_Workload_and_Rates_Summary_${safeFilename(context.schoolYear)}_${new Date().toISOString().split('T')[0]}`;
+        saveWorkbook(workbook, fileName);
+        showBanner('Faculty workload & rates summary report (one sheet) exported successfully.', 'success');
     }
 
     function renderFacultyRosterProgramOptions() {
@@ -723,7 +1232,8 @@
         }
     }
 
-    function exportRoomSchedule() {
+    async function exportRoomSchedule() {
+        await resolveSignatories();
         const room = document.getElementById('view-room-select')?.value;
         const building = document.getElementById('view-building-select')?.value || 'All';
         if (!room) return showBanner('Select room.', 'error');
@@ -733,8 +1243,9 @@
         exportScheduleWorkbook(`${room} SCHEDULE`, `${context.semesterLabel}, AY ${context.schoolYear} - ${roomBuilding}`, loads, 'room', `Room_Schedule_${room}_${context.schoolYear}`, 2);
     }
 
-    function exportAllRoomSchedules() {
+    async function exportAllRoomSchedules() {
         if (!ensureExcelJS()) return;
+        await resolveSignatories();
         const context = selectedContext();
         const buildingFilter = document.getElementById('view-building-select')?.value || 'All';
         const loads = filteredLoads(load => load.sy === context.schoolYear
@@ -774,8 +1285,9 @@
         saveWorkbook(workbook, `All_Room_Schedules_${context.schoolYear}`);
     }
 
-    function exportProgramSchedule() {
+    async function exportProgramSchedule() {
         if (!ensureExcelJS()) return;
+        await resolveSignatories();
         const program = document.getElementById('load-program-selector')?.value;
         if (!program) return showBanner('Please select a program.', 'error');
         const context = selectedContext();
@@ -785,8 +1297,9 @@
         exportScheduleWorkbook(`${program.toUpperCase()} - FACULTY SCHEDULE`, `${context.semesterLabel.toUpperCase()} AY ${context.schoolYear}`, loads, 'program', `Program_Schedule_${program}_${context.schoolYear}`, 1);
     }
 
-    function exportAllProgramSchedules() {
+    async function exportAllProgramSchedules() {
         if (!ensureExcelJS()) return;
+        await resolveSignatories();
         const context = selectedContext();
         const loads = filteredLoads(load => load.sy === context.schoolYear && isMatchingSemester(load, context.semester));
         if (!loads.length) return showBanner('No faculty loading data found for the selected filters.', 'error');
@@ -821,16 +1334,39 @@
         saveWorkbook(workbook, `All_Program_Schedules_${context.schoolYear}`);
     }
 
-    function exportSectionTimetable() {
-        const section = document.getElementById('view-section-select')?.value;
+    async function exportSectionTimetable(targetSection = null) {
+        await resolveSignatories();
+        const section = targetSection || document.getElementById('view-section-select')?.value;
         if (!section) return showBanner('Please select a section.', 'error');
         const context = selectedContext();
         const loads = filteredLoads(load => load.sec === section && load.sy === context.schoolYear && isMatchingSemester(load, context.semester));
         exportScheduleWorkbook(`${section} TIMETABLE`, `${context.semesterLabel}, AY ${context.schoolYear}`, loads, 'section', `Section_Timetable_${section}_${context.schoolYear}`, 2);
     }
 
-    function exportAllSectionTimetables() {
+    async function buildSectionTimetableWorkbookBuffer(targetSection = null) {
+        if (!ensureExcelJS()) return null;
+        await resolveSignatories();
+        const section = targetSection || document.getElementById('view-section-select')?.value;
+        if (!section) return null;
+        const context = selectedContext();
+        const loads = filteredLoads(load => load.sec === section && load.sy === context.schoolYear && isMatchingSemester(load, context.semester));
+        if (!loads.length) return null;
+
+        const workbook = new ExcelJS.Workbook();
+        addScheduleWorksheet(workbook, `${section} TIMETABLE`, `${context.semesterLabel.toUpperCase()} AY ${context.schoolYear}`, loads, 'section', 'Timetable', 2);
+        const buffer = await workbook.xlsx.writeBuffer();
+        let binary = '';
+        const bytes = new Uint8Array(buffer);
+        const len = bytes.byteLength;
+        for (let i = 0; i < len; i++) {
+            binary += String.fromCharCode(bytes[i]);
+        }
+        return btoa(binary);
+    }
+
+    async function exportAllSectionTimetables() {
         if (!ensureExcelJS()) return;
+        await resolveSignatories();
         const context = selectedContext();
         const loads = filteredLoads(load => load.sy === context.schoolYear && isMatchingSemester(load, context.semester));
         if (!loads.length) return showBanner('No section timetable data found for the selected filters.', 'error');
@@ -870,8 +1406,8 @@
     function buildFacultyProfileSheet(workbook, facultyList, departmentLabel, sheetName) {
         const worksheet = baseWorksheet(workbook, sheetName.slice(0, 31) || 'Faculty Profile');
 
-        // Column widths: NO | NAME/Rank | Baccalaureate | Masters | Doctorate | Post-Bacc | License | Specialization | Nat. Cert | Nature of Appt
-        [6, 26, 28, 28, 18, 22, 16, 22, 22, 22].forEach((w, i) => { worksheet.getColumn(i + 1).width = w; });
+        // Column widths: NO | NAME/Rank | Baccalaureate | Masters | Doctorate | Post-Bacc | License | Specialization | Nat. Cert | Nature of Appt | Faculty Email | First Semester (AY) | Second Semester (AY)
+        [6, 26, 28, 28, 18, 22, 16, 22, 22, 22, 28, 32, 32].forEach((w, i) => { worksheet.getColumn(i + 1).width = w; });
 
         const DARK_BLUE = 'FF1F3864';
         const LIGHT_BLUE_BG = 'FFD6E4F7';
@@ -898,7 +1434,7 @@
         }
 
         // ===== ROW 1: TEACHING PERSONNEL PROFILE =====
-        worksheet.mergeCells(1, 1, 1, 10);
+        worksheet.mergeCells(1, 1, 1, 13);
         const r1 = worksheet.getCell(1, 1);
         r1.value = 'TEACHING PERSONNEL PROFILE';
         r1.font = { name: 'Calibri', size: 14, bold: true, color: { argb: CURRICULUM_BLACK } };
@@ -906,7 +1442,7 @@
         worksheet.getRow(1).height = 24;
 
         // ===== ROW 2: DEPARTMENT =====
-        worksheet.mergeCells(2, 1, 2, 10);
+        worksheet.mergeCells(2, 1, 2, 13);
         const r2 = worksheet.getCell(2, 1);
         r2.value = departmentLabel.toUpperCase();
         r2.font = { name: 'Calibri', size: 11, bold: true, color: { argb: CURRICULUM_BLACK } };
@@ -928,34 +1464,52 @@
         worksheet.mergeCells(3, 9, 4, 9);
         // NATURE OF APPOINTMENT
         worksheet.mergeCells(3, 10, 4, 10);
+        // FACULTY EMAIL (pup.edu.ph)
+        worksheet.mergeCells(3, 11, 4, 11);
+        // SUBJECT LOADED (spans Col 12 and Col 13)
+        worksheet.mergeCells(3, 12, 3, 13);
+
+        const context = selectedContext();
+        const activeSY = (context.schoolYear && context.schoolYear !== 'Academic Year' && context.schoolYear !== 'All School Years')
+            ? context.schoolYear
+            : (State.activeSchoolYear || State.db?.schoolYears?.[0] || '');
+        const syLabel = activeSY ? (String(activeSY).startsWith('AY') ? String(activeSY) : `AY ${activeSY}`) : 'AY';
 
         const headerLabels = {
             '3,1': 'NO.', '3,2': 'NAME\nDesignation / Academic Rank',
             '3,3': 'EDUCATIONAL ATTAINMENT',
             '3,7': 'LICENSE NO.', '3,8': 'SPECIALIZATION',
             '3,9': 'NATIONAL CERTIFICATE', '3,10': 'NATURE OF APPOINTMENT',
-            '4,3': 'Baccalaureate', '4,4': 'Masters', '4,5': 'Doctorate', '4,6': 'Post-Baccalaureate'
+            '3,11': 'FACULTY EMAIL\n(pup.edu.ph)',
+            '3,12': 'SUBJECT LOADED',
+            '4,3': 'Baccalaureate', '4,4': 'Masters', '4,5': 'Doctorate', '4,6': 'Post-Baccalaureate',
+            '4,12': 'First Semester\n(' + syLabel + ')',
+            '4,13': 'Second Semester\n(' + syLabel + ')'
         };
+
+        for (let c = 1; c <= 13; c++) {
+            [3, 4].forEach(r => {
+                const cell = worksheet.getCell(r, c);
+                cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: CURRICULUM_BLACK } };
+                cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: HEADER_BG } };
+                cell.border = fpBoldBorder();
+            });
+        }
 
         Object.entries(headerLabels).forEach(([key, label]) => {
             const [r, c] = key.split(',').map(Number);
-            const cell = worksheet.getCell(r, c);
-            cell.value = label;
-            cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: CURRICULUM_BLACK } };
-            cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: HEADER_BG } };
-            cell.border = fpBoldBorder();
+            worksheet.getCell(r, c).value = label;
         });
 
         [3, 4].forEach(r => {
-            worksheet.getRow(r).height = 28;
+            worksheet.getRow(r).height = 30;
         });
 
         // ===== DATA ROWS =====
         facultyList.forEach((faculty, index) => {
             const rowNum = 5 + index;
             const row = worksheet.getRow(rowNum);
-            row.height = 60;
 
             const education = faculty.educationalAttainment || {};
             const name = String(faculty.name || '').toUpperCase();
@@ -988,7 +1542,6 @@
                     cell.value = 'N/A';
                     cell.font = { name: 'Calibri', size: 9, italic: true, color: { argb: '88000000' } };
                 } else {
-                    // Try to split "DEGREE\nINSTITUTION" or just show as-is
                     const lines = raw.split(/\n/);
                     if (lines.length > 1) {
                         cell.value = {
@@ -1018,6 +1571,81 @@
                 cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
                 cell.border = fpThinBorder();
             });
+
+            // Col 11: Faculty Email (pup.edu.ph)
+            const emailCell = row.getCell(11);
+            const emailVal = String(faculty.email || '').trim();
+            emailCell.value = emailVal ? emailVal.toLowerCase() : 'N/A';
+            emailCell.font = { name: 'Calibri', size: 9, italic: !emailVal, color: { argb: emailVal ? 'FF1E40AF' : '88000000' } };
+            emailCell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+            emailCell.border = fpThinBorder();
+
+            // Col 12 & 13: Subject Loaded (First Semester & Second Semester, Deduplicated)
+            const profNameClean = String(faculty.name || '').trim().toLowerCase();
+            let profLoads = (State.db?.loads || []).filter(l =>
+                String(l.prof || '').trim().toLowerCase() === profNameClean &&
+                (!activeSY || l.sy === activeSY)
+            );
+            if (profLoads.length === 0) {
+                profLoads = (State.db?.loads || []).filter(l => String(l.prof || '').trim().toLowerCase() === profNameClean);
+            }
+
+            const firstSemSubs = [];
+            const secondSemSubs = [];
+
+            profLoads.forEach(l => {
+                const subName = String(l.sub || l.subject || '').trim();
+                if (!subName) return;
+                const semRaw = String(l.semester || '1').trim().toLowerCase();
+                if (semRaw === '2' || semRaw.includes('2nd') || semRaw.includes('second')) {
+                    if (!secondSemSubs.some(s => s.toLowerCase() === subName.toLowerCase())) {
+                        secondSemSubs.push(subName);
+                    }
+                } else if (semRaw === '3' || semRaw.includes('summer')) {
+                    const subWithTag = `${subName} (Summer)`;
+                    if (!secondSemSubs.some(s => s.toLowerCase() === subWithTag.toLowerCase())) {
+                        secondSemSubs.push(subWithTag);
+                    }
+                } else {
+                    if (!firstSemSubs.some(s => s.toLowerCase() === subName.toLowerCase())) {
+                        firstSemSubs.push(subName);
+                    }
+                }
+            });
+
+            // Col 12: First Semester
+            const sem1Cell = row.getCell(12);
+            if (firstSemSubs.length > 0) {
+                sem1Cell.value = firstSemSubs.map(s => `• ${s}`).join('\n');
+                sem1Cell.font = { name: 'Calibri', size: 9, bold: false, color: { argb: CURRICULUM_BLACK } };
+                sem1Cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true, indent: 1 };
+            } else {
+                sem1Cell.value = 'None';
+                sem1Cell.font = { name: 'Calibri', size: 9, italic: true, color: { argb: '88000000' } };
+                sem1Cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            }
+            sem1Cell.border = fpThinBorder();
+
+            // Col 13: Second Semester
+            const sem2Cell = row.getCell(13);
+            if (secondSemSubs.length > 0) {
+                sem2Cell.value = secondSemSubs.map(s => `• ${s}`).join('\n');
+                sem2Cell.font = { name: 'Calibri', size: 9, bold: false, color: { argb: CURRICULUM_BLACK } };
+                sem2Cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true, indent: 1 };
+            } else {
+                sem2Cell.value = 'None';
+                sem2Cell.font = { name: 'Calibri', size: 9, italic: true, color: { argb: '88000000' } };
+                sem2Cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            }
+            sem2Cell.border = fpThinBorder();
+
+            const semLines = Math.max(firstSemSubs.length, secondSemSubs.length, 1);
+            const eduMaxLines = Math.max(
+                ...['baccalaureate', 'masters', 'doctorate', 'postBaccalaureate'].map(k => String(education[k] || '').split(/\n/).length),
+                1
+            );
+            const maxLines = Math.max(semLines, eduMaxLines, 2);
+            row.height = Math.max(50, maxLines * 16 + 12);
         });
     }
 
@@ -1025,6 +1653,17 @@
         if (!ensureExcelJS()) return;
         const allFaculty = Array.isArray(facultyRegistry) ? facultyRegistry : [];
         if (!allFaculty.length) return showBanner('No faculty profiles found.', 'error');
+
+        const selectedId = document.getElementById('faculty-profile-select')?.value;
+        if (!programFilter && selectedId) {
+            const faculty = allFaculty.find(f => f.id === selectedId);
+            if (faculty) {
+                const workbook = new ExcelJS.Workbook();
+                buildFacultyProfileSheet(workbook, [faculty], `${faculty.program || 'General'} Department`, (faculty.name || 'Faculty').slice(0, 31));
+                saveWorkbook(workbook, `Faculty_Profile_${safeFilename(faculty.name)}_${new Date().toISOString().split('T')[0]}`);
+                return;
+            }
+        }
 
         const isAll = !programFilter || String(programFilter).toLowerCase() === 'all';
         const workbook = new ExcelJS.Workbook();
@@ -1352,9 +1991,11 @@
     window.exportRoomSchedule = exportRoomSchedule;
     window.exportAllRoomSchedules = exportAllRoomSchedules;
     window.exportSectionTimetable = exportSectionTimetable;
+    window.buildSectionTimetableWorkbookBuffer = buildSectionTimetableWorkbookBuffer;
     window.exportAllSectionTimetables = exportAllSectionTimetables;
     window.exportFacultyProfileExcel = exportFacultyProfileExcel;
     window.exportProgramCurriculum = exportProgramCurriculum;
+    window.exportFacultyWorkloadSummarySheet = exportFacultyWorkloadSummarySheet;
 
     function renderExportProgramMenus() {
         renderFacultyRosterProgramOptions();

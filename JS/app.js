@@ -969,6 +969,14 @@ function openEditFacultyModal() {
                     <input id="faculty-update-extension" value="${faculty.extension || ''}" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]" />
                 </div>
                 <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Faculty Email</label>
+                    <input type="email" id="faculty-update-email" value="${faculty.email || ''}" placeholder="e.g. faculty@pup.edu.ph" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]" />
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Rate / Day (₱)</label>
+                    <input type="number" step="0.01" min="0" id="faculty-update-rate-day" value="${faculty.ratePerDay !== undefined ? faculty.ratePerDay : ''}" placeholder="e.g. 1500.00" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]" />
+                </div>
+                <div>
                     <label class="block text-sm font-medium text-slate-700 mb-2">Remarks</label>
                     <textarea id="faculty-update-remarks" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]">${faculty.remarks || ''}</textarea>
                 </div>
@@ -1051,7 +1059,9 @@ function openEditFacultyModal() {
             const ncValue = document.getElementById('faculty-update-nc')?.value.trim();
             const natureValue = document.getElementById('faculty-update-nature')?.value.trim();
             const extensionValue = document.getElementById('faculty-update-extension')?.value.trim();
+            const emailValue = document.getElementById('faculty-update-email')?.value.trim();
             const remarksValue = document.getElementById('faculty-update-remarks')?.value.trim();
+            const rateDayValue = parseFloat(document.getElementById('faculty-update-rate-day')?.value) || 0;
             const baccValue = document.getElementById('faculty-update-bacc')?.value.trim();
             const masterValue = document.getElementById('faculty-update-master')?.value.trim();
             const doctorateValue = document.getElementById('faculty-update-doctorate')?.value.trim();
@@ -1066,6 +1076,7 @@ function openEditFacultyModal() {
             const citationValue = document.getElementById('faculty-update-citation')?.value.trim();
 
             professor.name = newName;
+            professor.email = emailValue;
             professor.program = newProgram;
             professor.active = activeValue === 'active';
             professor.employmentType = employmentValue || professor.employmentType;
@@ -1078,6 +1089,7 @@ function openEditFacultyModal() {
             professor.natureOfAppointment = natureValue;
             professor.extension = extensionValue;
             professor.remarks = remarksValue;
+            professor.ratePerDay = rateDayValue;
             professor.educationalAttainment = {
                 baccalaureate: baccValue,
                 masters: masterValue,
@@ -1271,6 +1283,10 @@ function displaySelectedFacultyProfile() {
                     <h4 class="text-2xl font-bold text-gray-900">${faculty.name}</h4>
                     <p class="text-sm text-gray-500 mt-2">${getTitleLabel(faculty)} • ${faculty.baseDesignation}</p>
                     <p class="text-sm text-slate-600">${faculty.specialization}</p>
+                    <p class="text-xs font-semibold text-blue-700 mt-2 flex items-center gap-1.5 bg-blue-50/70 border border-blue-100 rounded-xl px-3 py-1.5 w-fit">
+                        <span>✉</span>
+                        <span>${faculty.email || 'No email specified'}</span>
+                    </p>
                 </div>
                 <div class="flex flex-col gap-2 text-right">
                     <span class="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase text-slate-700">${faculty.program}</span>
@@ -1295,6 +1311,14 @@ function displaySelectedFacultyProfile() {
                 <div class="rounded-3xl bg-slate-50 p-4 border border-slate-200">
                     <p class="text-xs uppercase text-slate-400 font-semibold">Classification Rank</p>
                     <p class="mt-2 font-bold text-gray-900">${rankLabel}</p>
+                </div>
+                <div class="rounded-3xl bg-blue-50/50 p-4 border border-blue-100">
+                    <p class="text-xs uppercase text-blue-700 font-semibold">Faculty Email</p>
+                    <p class="mt-2 font-bold text-blue-950 text-sm break-all">${faculty.email || 'N/A'}</p>
+                </div>
+                <div class="rounded-3xl bg-emerald-50/70 p-4 border border-emerald-200">
+                    <p class="text-xs uppercase text-emerald-700 font-semibold">Rate / Day</p>
+                    <p class="mt-2 font-bold text-emerald-900 text-base">₱${Number(faculty.ratePerDay || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                 </div>
             </div>
             
@@ -1470,7 +1494,9 @@ async function saveNewFacultyProfile() {
         },
         extension: document.getElementById('new-faculty-extension')?.value || '',
         natureOfAppointment: document.getElementById('new-faculty-nature')?.value || '',
-        remarks: document.getElementById('new-faculty-remarks')?.value || ''
+        email: document.getElementById('new-faculty-email')?.value || '',
+        remarks: document.getElementById('new-faculty-remarks')?.value || '',
+        ratePerDay: parseFloat(document.getElementById('new-faculty-rate-day')?.value) || 0
     };
 
     try {
@@ -2364,8 +2390,47 @@ function exportFacultyProfileExcel() {
     const faculty = facultyRegistry.find(f => f.id === selectedId);
     if (!faculty) return showBanner('Faculty profile not found.', 'error');
 
+    const activeSY = State.activeSchoolYear || State.db?.schoolYears?.[0] || '';
+    const syLabel = activeSY ? (String(activeSY).startsWith('AY') ? String(activeSY) : `AY ${activeSY}`) : 'AY';
+
+    const profNameClean = String(faculty.name || '').trim().toLowerCase();
+    let profLoads = (State.db?.loads || []).filter(l =>
+        String(l.prof || '').trim().toLowerCase() === profNameClean &&
+        (!activeSY || l.sy === activeSY)
+    );
+    if (profLoads.length === 0) {
+        profLoads = (State.db?.loads || []).filter(l => String(l.prof || '').trim().toLowerCase() === profNameClean);
+    }
+
+    const firstSemSubs = [];
+    const secondSemSubs = [];
+
+    profLoads.forEach(l => {
+        const subName = String(l.sub || l.subject || '').trim();
+        if (!subName) return;
+        const semRaw = String(l.semester || '1').trim().toLowerCase();
+        if (semRaw === '2' || semRaw.includes('2nd') || semRaw.includes('second')) {
+            if (!secondSemSubs.some(s => s.toLowerCase() === subName.toLowerCase())) {
+                secondSemSubs.push(subName);
+            }
+        } else if (semRaw === '3' || semRaw.includes('summer')) {
+            const subWithTag = `${subName} (Summer)`;
+            if (!secondSemSubs.some(s => s.toLowerCase() === subWithTag.toLowerCase())) {
+                secondSemSubs.push(subWithTag);
+            }
+        } else {
+            if (!firstSemSubs.some(s => s.toLowerCase() === subName.toLowerCase())) {
+                firstSemSubs.push(subName);
+            }
+        }
+    });
+
+    const firstSemSummary = firstSemSubs.length > 0 ? firstSemSubs.join(', ') : 'None';
+    const secondSemSummary = secondSemSubs.length > 0 ? secondSemSubs.join(', ') : 'None';
+
     const rows = [
         ['Name', faculty.name],
+        ['Faculty Email', faculty.email || 'N/A'],
         ['Program', faculty.program],
         ['Employment Type', faculty.employmentType],
         ['Designation / Title', faculty.baseDesignation],
@@ -2377,6 +2442,9 @@ function exportFacultyProfileExcel() {
         ['National Certificate', faculty.nationalCertificate || 'N/A'],
         ['Nature of Appointment', faculty.natureOfAppointment || 'N/A'],
         ['Extension', faculty.extension || 'N/A'],
+        ['Rate / Day', `₱${Number(faculty.ratePerDay || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+        [`Subject Loaded - First Semester (${syLabel})`, firstSemSummary],
+        [`Subject Loaded - Second Semester (${syLabel})`, secondSemSummary],
         ['Remarks', faculty.remarks || 'N/A'],
         ['Baccalaureate', faculty.educationalAttainment?.baccalaureate || 'N/A'],
         ['Masters', faculty.educationalAttainment?.masters || 'N/A'],

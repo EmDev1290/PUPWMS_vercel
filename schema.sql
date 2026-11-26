@@ -60,7 +60,10 @@ CREATE TABLE `faculty` (
     `preferred_subjects` VARCHAR(255) DEFAULT '',
     `preferred_times` VARCHAR(255) DEFAULT '',
     `remarks` VARCHAR(255) DEFAULT '',
-    `email` VARCHAR(255) DEFAULT ''
+    `email` VARCHAR(255) DEFAULT '',
+    `rate_per_day` DECIMAL(12, 2) DEFAULT 0.00,
+    `rate_per_month` DECIMAL(12, 2) DEFAULT 0.00,
+    `rate_per_hour` DECIMAL(12, 2) DEFAULT 0.00
 );
 
 CREATE TABLE `school_years` (

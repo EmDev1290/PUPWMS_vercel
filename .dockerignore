@@ -1,0 +1,8 @@
+node_modules
+.git
+.env
+System_content_info/*.xlsx
+System_content_info/*.ods
+system_excel_format
+reference
+*.log

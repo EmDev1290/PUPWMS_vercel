@@ -11,6 +11,32 @@ function escapeHtml(value) {
     }[character]));
 }
 
+function normalizeProgramCode(name) {
+    if (!name) return '';
+    const s = String(name).toUpperCase().trim();
+    if (s.includes('INFORMATION TECHNOLOGY') || s === 'BSIT' || s === 'IT') return 'BSIT';
+    if (s.includes('COMPUTER ENGINEERING') || s === 'BSCPE' || s === 'BSCP' || s === 'COE' || s === 'CPE') return 'BSCPE';
+    if (s.includes('HOSPITALITY') || s === 'BSHM' || s === 'HM') return 'BSHM';
+    if (s.includes('OFFICE ADMINISTRATION') || s === 'BSOA' || s === 'OA') return 'BSOA';
+    if (s.includes('GENERAL EDUCATION') || s.includes('GEN-ED') || s.includes('GEN ED') || s === 'GENED') return 'GEN-ED';
+    return s;
+}
+
+function matchesProgram(facultyProgramStr, targetProgram) {
+    if (!facultyProgramStr || !targetProgram) return false;
+    const targetCode = normalizeProgramCode(targetProgram);
+    const assignedCodes = String(facultyProgramStr)
+        .split(',')
+        .map(p => normalizeProgramCode(p.trim()));
+    return assignedCodes.includes(targetCode);
+}
+
+function isFacultyActive(f) {
+    if (!f) return false;
+    if (f.active === false || f.active === 0 || f.active === '0' || f.active === 'false' || f.active === 'inactive') return false;
+    return true;
+}
+
 function findSubjectInfo(subjectName, programName) {
     if (!subjectName || !State || !State.db || !State.db.programs) return null;
     const cleanSub = String(subjectName).replace(/^\[\s*BRIDGING\s*\]\s*/i, '').trim().toLowerCase();
@@ -2057,22 +2083,15 @@ function filterFacultyStatus(statusMode) {
     renderProgramResources();
 }
 
-// PROGRAM RESOURCES RENDERING ENGINE (INTERSECTING MATRIX WITH GROUPS)
-// PROGRAM RESOURCES RENDERING ENGINE (INTERSECTING MATRIX WITH GROUPS)
-// PROGRAM RESOURCES RENDERING ENGINE (INTERSECTING MATRIX WITH GROUPS)
+// PROGRAM RESOURCES RENDERING MODULE
 function renderProgramResources() {
     const program = State.db.programs[State.activeProgram] || { profs: [], sections: [], subjects: {} };
-    const facultyObjs = facultyRegistry.filter(f => {
-        if (!f.program) return false;
-        const programs = f.program.split(',').map(p => p.trim());
-        return programs.includes(State.activeProgram);
-    });
+    const facultyObjs = facultyRegistry.filter(f => matchesProgram(f.program, State.activeProgram));
 
     const facultyCountEl = document.getElementById('resource-faculty-count');
     const subjectCountEl = document.getElementById('resource-subject-count');
     const sectionCountEl = document.getElementById('resource-section-count');
 
-    if (facultyCountEl) facultyCountEl.innerText = facultyObjs.length;
     if (sectionCountEl) sectionCountEl.innerText = program.sections ? program.sections.length : 0;
     if (subjectCountEl) {
         let totalCount = 0;
@@ -2089,47 +2108,86 @@ function renderProgramResources() {
     if (document.getElementById('resource-program-name')) {
         document.getElementById('resource-program-name').innerText = State.activeProgram;
     }
+    renderActiveProgramButtons();
+
+    const yearSelect = document.getElementById('resource-year-select');
+    const semesterSelect = document.getElementById('resource-semester-select');
+    const yearKeys = Object.keys(program.subjects || {});
+    if (yearSelect) {
+        yearSelect.innerHTML = `<option value="">All Years</option>` + yearKeys.map(yk => `<option value="${yk}">${yk}</option>`).join('');
+        yearSelect.value = State.resourceYearLevel || '';
+    }
+    const selectedYear = State.resourceYearLevel || yearKeys[0] || '';
+    const semesterKeys = selectedYear && program.subjects[selectedYear] ? Object.keys(program.subjects[selectedYear]) : [];
+    if (semesterSelect) {
+        semesterSelect.innerHTML = `<option value="">All Semesters</option>` + semesterKeys.map(sk => `<option value="${sk}">${sk}</option>`).join('');
+        semesterSelect.value = State.resourceSemester || '';
+    }
 
     const facultyList = document.getElementById('resource-faculty-list');
     if (facultyList) {
         facultyList.innerHTML = '';
 
-        // INTERSECTING MATRIX FILTER LOGIC
-        let displayedStaff = [...facultyObjs];
+        // Step 1: Filter based strictly on classification selection criteria 
+        let filteredStaff = [...facultyObjs];
 
-        // Rule 1: Filter on Job Classification Mapping
         if (State.facultyFilter === 'part-time') {
-            displayedStaff = displayedStaff.filter(f => f.employmentType.toLowerCase().includes('part'));
+            filteredStaff = filteredStaff.filter(f => String(f.employmentType || '').toLowerCase().includes('part'));
         } else if (State.facultyFilter === 'regular') {
-            displayedStaff = displayedStaff.filter(f => f.employmentType === 'Regular' && (f.baseDesignation.includes('Instructor') || f.baseDesignation.includes('Lecturer') || f.baseDesignation.includes('Professor')));
+            filteredStaff = filteredStaff.filter(f => String(f.employmentType || '') === 'Regular' && (String(f.baseDesignation || '').includes('Instructor') || String(f.baseDesignation || '').includes('Lecturer') || String(f.baseDesignation || '').includes('Professor')));
         } else if (State.facultyFilter === 'designee') {
-            displayedStaff = displayedStaff.filter(f => f.employmentType === 'Regular' && !f.baseDesignation.includes('Instructor') && !f.baseDesignation.includes('Lecturer'));
+            filteredStaff = filteredStaff.filter(f => String(f.employmentType || '') === 'Regular' && !String(f.baseDesignation || '').includes('Instructor') && !String(f.baseDesignation || '').includes('Lecturer'));
         }
 
-        // Rule 2: Intersect with Status Map Toggles
         if (State.facultyStatusFilter === 'active') {
-            displayedStaff = displayedStaff.filter(f => f.active !== false);
+            filteredStaff = filteredStaff.filter(isFacultyActive);
         } else if (State.facultyStatusFilter === 'inactive') {
-            displayedStaff = displayedStaff.filter(f => f.active === false);
+            filteredStaff = filteredStaff.filter(f => !isFacultyActive(f));
         }
 
+        // Search input filter
+        const searchInput = document.getElementById('resource-faculty-search');
+        if (searchInput && searchInput.value && searchInput.value.trim()) {
+            const q = searchInput.value.trim().toLowerCase();
+            filteredStaff = filteredStaff.filter(f => 
+                (f.name || '').toLowerCase().includes(q) ||
+                (f.baseDesignation || '').toLowerCase().includes(q) ||
+                (f.employmentType || '').toLowerCase().includes(q)
+            );
+        }
+
+        // Sync count badge
+        if (facultyCountEl) {
+            if (filteredStaff.length !== facultyObjs.length) {
+                facultyCountEl.innerText = `${filteredStaff.length} / ${facultyObjs.length}`;
+            } else {
+                facultyCountEl.innerText = facultyObjs.length;
+            }
+        }
+
+        // Step 2: Card Template Component Builder Closure
         const createCard = (f) => {
             const card = document.createElement('div');
-            const isProfInactive = f.active === false;
-            card.className = `rounded-2xl bg-white p-3 border mb-2 transition-all flex flex-col gap-1.5 ${isProfInactive ? 'opacity-60 border-dashed border-slate-200 bg-slate-50/50' : 'border-slate-100 shadow-xs hover:border-slate-300 cursor-pointer'}`;
+            const isProfInactive = !isFacultyActive(f);
+
+            card.className = `rounded-2xl bg-white p-3 border mb-2 transition-all flex flex-col gap-1.5 ${isProfInactive
+                ? 'opacity-60 border-dashed border-slate-200 bg-slate-50/50'
+                : 'border-slate-100 shadow-xs hover:border-slate-300 cursor-pointer'
+                }`;
+            card.setAttribute('data-faculty', f.id);
 
             const statusBadge = isProfInactive
-                ? `<span class="inline-flex items-center text-[9px] px-1.5 py-0.5 rounded font-bold uppercase bg-red-50 text-red-600 border border-red-100">Inactive</span>`
-                : `<span class="inline-flex items-center text-[9px] px-1.5 py-0.5 rounded font-bold uppercase bg-emerald-50 text-emerald-600 border border-emerald-100">Active</span>`;
+                ? `<span class="inline-flex items-center text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider bg-red-50 text-red-600 border border-red-100">Inactive</span>`
+                : `<span class="inline-flex items-center text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider bg-emerald-50 text-emerald-600 border border-emerald-100">Active</span>`;
 
             card.innerHTML = `
                 <div class="flex items-start justify-between gap-2">
                     <div>
-                        <div class="font-bold text-slate-900 text-xs">${f.name}</div>
-                        <div class="text-[10px] text-slate-400 mt-0.5">${getTitleLabel(f)} • ${f.baseDesignation}</div>
+                        <div class="font-bold text-slate-900 text-xs">${escapeHtml(f.name)}</div>
+                        <div class="text-[10px] text-slate-400 mt-0.5">${escapeHtml(getTitleLabel(f))} • ${escapeHtml(f.baseDesignation)}</div>
                     </div>
                     <div class="flex flex-col items-end gap-1 flex-shrink-0">
-                        <div class="text-[9px] px-1.5 py-0.5 rounded-full bg-slate-100 border text-slate-600 font-medium">${f.employmentType}</div>
+                        <div class="text-[9px] px-1.5 py-0.5 rounded-full bg-slate-100 border text-slate-600 font-medium">${escapeHtml(f.employmentType)}</div>
                         ${statusBadge}
                     </div>
                 </div>
@@ -2138,23 +2196,33 @@ function renderProgramResources() {
             return card;
         };
 
-        const activeStaff = displayedStaff.filter(f => f.active !== false);
-        const inactiveStaff = displayedStaff.filter(f => f.active === false);
+        const activeStaff = filteredStaff.filter(isFacultyActive);
+        const inactiveStaff = filteredStaff.filter(f => !isFacultyActive(f));
 
         if (activeStaff.length > 0) {
-            const block = document.createElement('div'); block.className = "mb-4";
-            block.innerHTML = `<div class="text-[10px] font-bold uppercase tracking-widest text-emerald-600 mb-2">🟢 Active (${activeStaff.length})</div>`;
-            activeStaff.forEach(f => block.appendChild(createCard(f)));
-            facultyList.appendChild(block);
+            const activeHeaderBlock = document.createElement('div');
+            activeHeaderBlock.className = "mb-4";
+            activeHeaderBlock.innerHTML = `<div class="text-[10px] font-bold uppercase tracking-widest text-emerald-600 mb-2 flex items-center gap-1.5">🟢 Active (${activeStaff.length})</div>`;
+
+            const activeCardsWrapper = document.createElement('div');
+            activeStaff.forEach(f => activeCardsWrapper.appendChild(createCard(f)));
+            activeHeaderBlock.appendChild(activeCardsWrapper);
+            facultyList.appendChild(activeHeaderBlock);
         }
+
         if (inactiveStaff.length > 0) {
-            const block = document.createElement('div'); block.className = "mb-2";
-            block.innerHTML = `<div class="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">⚫ Inactive (${inactiveStaff.length})</div>`;
-            inactiveStaff.forEach(f => block.appendChild(createCard(f)));
-            facultyList.appendChild(block);
+            const inactiveHeaderBlock = document.createElement('div');
+            inactiveHeaderBlock.className = "mb-2 mt-2";
+            inactiveHeaderBlock.innerHTML = `<div class="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-1.5">⚫ Inactive (${inactiveStaff.length})</div>`;
+
+            const inactiveCardsWrapper = document.createElement('div');
+            inactiveStaff.forEach(f => inactiveCardsWrapper.appendChild(createCard(f)));
+            inactiveHeaderBlock.appendChild(inactiveCardsWrapper);
+            facultyList.appendChild(inactiveHeaderBlock);
         }
-        if (displayedStaff.length === 0) {
-            facultyList.innerHTML = '<div class="text-gray-400 italic text-xs p-4 text-center">No matching records found.</div>';
+
+        if (filteredStaff.length === 0) {
+            facultyList.innerHTML = '<div class="text-gray-400 italic text-xs p-4 text-center">No matching instructors found.</div>';
         }
     }
 
@@ -2239,29 +2307,25 @@ function renderProgramResources() {
 
 // NEW FUNCTION: GENERATES CATEGORIZED, CLEAN PRINT OUT PREVIEWS
 function printFilteredFaculty() {
-    const facultyObjs = facultyRegistry.filter(f => {
-        if (!f.program) return false;
-        const programs = f.program.split(',').map(p => p.trim());
-        return programs.includes(State.activeProgram);
-    });
+    const facultyObjs = facultyRegistry.filter(f => matchesProgram(f.program, State.activeProgram));
     let filtered = [...facultyObjs];
 
     if (State.facultyFilter === 'part-time') {
-        filtered = filtered.filter(f => f.employmentType.toLowerCase().includes('part'));
+        filtered = filtered.filter(f => String(f.employmentType || '').toLowerCase().includes('part'));
     } else if (State.facultyFilter === 'regular') {
-        filtered = filtered.filter(f => f.employmentType === 'Regular' && (f.baseDesignation.includes('Instructor') || f.baseDesignation.includes('Lecturer') || f.baseDesignation.includes('Professor')));
+        filtered = filtered.filter(f => String(f.employmentType || '') === 'Regular' && (String(f.baseDesignation || '').includes('Instructor') || String(f.baseDesignation || '').includes('Lecturer') || String(f.baseDesignation || '').includes('Professor')));
     } else if (State.facultyFilter === 'designee') {
-        filtered = filtered.filter(f => f.employmentType === 'Regular' && !f.baseDesignation.includes('Instructor') && !f.baseDesignation.includes('Lecturer'));
+        filtered = filtered.filter(f => String(f.employmentType || '') === 'Regular' && !String(f.baseDesignation || '').includes('Instructor') && !String(f.baseDesignation || '').includes('Lecturer'));
     }
 
     if (State.facultyStatusFilter === 'active') {
-        filtered = filtered.filter(f => f.active !== false);
+        filtered = filtered.filter(isFacultyActive);
     } else if (State.facultyStatusFilter === 'inactive') {
-        filtered = filtered.filter(f => f.active === false);
+        filtered = filtered.filter(f => !isFacultyActive(f));
     }
 
-    const activeList = filtered.filter(f => f.active !== false);
-    const inactiveList = filtered.filter(f => f.active === false);
+    const activeList = filtered.filter(isFacultyActive);
+    const inactiveList = filtered.filter(f => !isFacultyActive(f));
 
     const buildTableRows = (list) => list.map(f => `
         <tr>
@@ -2994,8 +3058,8 @@ function renderDashboard() {
 
     const newBuildingFacilities = Array.isArray(State.db.rooms) ? State.db.rooms.filter(r => r.building === 'New Building').length : 0;
     const oldBuildingFacilities = Array.isArray(State.db.rooms) ? State.db.rooms.filter(r => r.building === 'Main Building').length : 0;
-    const activeCount = facultyRegistry.filter(f => f.active !== false).length;
-    const inactiveCount = facultyRegistry.filter(f => f.active === false).length;
+    const activeCount = facultyRegistry.filter(isFacultyActive).length;
+    const inactiveCount = facultyRegistry.filter(f => !isFacultyActive(f)).length;
     const totalFaculty = facultyRegistry.length;
     const programCount = Object.keys(State.db.programs || {}).length;
     const totalLoads = Array.isArray(State.db.loads) ? State.db.loads.length : 0;
@@ -4039,6 +4103,10 @@ function openEditFacultyModal() {
                         <input type="email" id="faculty-update-email" value="${faculty.email || ''}" placeholder="e.g. faculty@pup.edu.ph" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]" />
                     </div>
                 </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Rate / Day (₱)</label>
+                    <input type="number" step="0.01" min="0" id="faculty-update-rate-day" value="${faculty.ratePerDay !== undefined ? faculty.ratePerDay : ''}" placeholder="e.g. 1500.00" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#7f0000]" />
+                </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-slate-700 mb-2">Preferred Subjects</label>
@@ -4165,6 +4233,7 @@ function openEditFacultyModal() {
                 .join(', ');
             const prefTimesValue = document.getElementById('faculty-update-pref-times-hidden')?.value.trim() || '';
             const remarksValue = document.getElementById('faculty-update-remarks')?.value.trim();
+            const rateDayValue = parseFloat(document.getElementById('faculty-update-rate-day')?.value) || 0;
             const baccValue = document.getElementById('faculty-update-bacc')?.value.trim();
             const masterValue = document.getElementById('faculty-update-master')?.value.trim();
             const doctorateValue = document.getElementById('faculty-update-doctorate')?.value.trim();
@@ -4188,6 +4257,7 @@ function openEditFacultyModal() {
                 baseDesignation: titleValue || professor.baseDesignation,
                 classification: classificationValue || professor.classification,
                 classificationRank: rankValue || professor.classificationRank || '',
+                ratePerDay: rateDayValue,
                 licenseNumber: licenseValue,
                 specialization: specializationValue,
                 nationalCertificate: ncValue,
@@ -4234,6 +4304,7 @@ function openEditFacultyModal() {
             professor.baseDesignation = titleValue || professor.baseDesignation;
             professor.classification = classificationValue || professor.classification;
             professor.classificationRank = rankValue || professor.classificationRank || '';
+            professor.ratePerDay = rateDayValue;
             professor.licenseNumber = licenseValue;
             professor.specialization = specializationValue;
             professor.nationalCertificate = ncValue;
@@ -4552,11 +4623,7 @@ function populateFacultyProfileDropdown() {
     programs.forEach(program => {
         const group = document.createElement('optgroup');
         group.label = program;
-        const filteredProfs = facultyRegistry.filter(f => {
-            if (!f.program) return false;
-            const progs = f.program.split(',').map(p => p.trim());
-            return progs.includes(program);
-        });
+        const filteredProfs = facultyRegistry.filter(f => matchesProgram(f.program, program));
         filteredProfs.forEach(faculty => {
             const option = document.createElement('option');
             option.value = faculty.id;
@@ -4630,6 +4697,10 @@ function displaySelectedFacultyProfile() {
                     <h4 class="text-2xl font-bold text-gray-900">${faculty.name}</h4>
                     <p class="text-sm text-gray-500 mt-2">${getTitleLabel(faculty)} • ${faculty.baseDesignation}</p>
                     <p class="text-sm text-slate-600">${faculty.specialization}</p>
+                    <p class="text-xs font-semibold text-blue-700 mt-2 flex items-center gap-1.5 bg-blue-50/70 border border-blue-100 rounded-xl px-3 py-1.5 w-fit">
+                        <span>✉</span>
+                        <span>${faculty.email || 'No email specified'}</span>
+                    </p>
                 </div>
                 <div class="flex flex-col gap-2 text-right">
                     <span class="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase text-slate-700">${faculty.program}</span>
@@ -4655,6 +4726,14 @@ function displaySelectedFacultyProfile() {
                 <div class="rounded-3xl bg-slate-50 p-4 border border-slate-200">
                     <p class="text-xs uppercase text-slate-400 font-semibold">Classification & Rank</p>
                     <p class="mt-2 font-bold text-gray-900">${faculty.classification || 'N/A'} • ${rankLabel}</p>
+                </div>
+                <div class="rounded-3xl bg-blue-50/50 p-4 border border-blue-100">
+                    <p class="text-xs uppercase text-blue-700 font-semibold">Faculty Email</p>
+                    <p class="mt-2 font-bold text-blue-950 text-sm break-all">${faculty.email || 'N/A'}</p>
+                </div>
+                <div class="rounded-3xl bg-emerald-50/50 p-4 border border-emerald-100">
+                    <p class="text-xs uppercase text-emerald-700 font-semibold">Rate / Day</p>
+                    <p class="mt-2 font-bold text-emerald-900 text-base">₱${Number(faculty.ratePerDay || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                 </div>
             </div>
 
@@ -4955,7 +5034,8 @@ async function saveNewFacultyProfile() {
             .filter(Boolean)
             .join(', '),
         preferredTimes: document.getElementById('new-faculty-pref-times-hidden')?.value.trim() || '',
-        remarks: document.getElementById('new-faculty-remarks')?.value || ''
+        remarks: document.getElementById('new-faculty-remarks')?.value || '',
+        ratePerDay: parseFloat(document.getElementById('new-faculty-rate-day')?.value) || 0
     };
 
     if (!isAcademicHeadUser()) {
@@ -5055,209 +5135,6 @@ function renderPageSections() {
     lucide.createIcons();
 }
 
-// PROGRAM RESOURCES RENDERING MODULE
-// PROGRAM RESOURCES RENDERING MODULE WITH SEPARATED STATUS SUB-LISTS
-function renderProgramResources() {
-    const program = State.db.programs[State.activeProgram] || { profs: [], sections: [], subjects: {} };
-    const facultyObjs = facultyRegistry.filter(f => {
-        if (!f.program) return false;
-        const programs = f.program.split(',').map(p => p.trim());
-        return programs.includes(State.activeProgram);
-    });
-
-    // Track count references
-    const facultyCountEl = document.getElementById('resource-faculty-count');
-    const subjectCountEl = document.getElementById('resource-subject-count');
-    const sectionCountEl = document.getElementById('resource-section-count');
-
-    if (facultyCountEl) facultyCountEl.innerText = facultyObjs.length;
-    if (sectionCountEl) sectionCountEl.innerText = program.sections ? program.sections.length : 0;
-    if (subjectCountEl) {
-        let totalCount = 0;
-        if (program.subjects && typeof program.subjects === 'object' && !Array.isArray(program.subjects)) {
-            Object.values(program.subjects).forEach(yearLvl => {
-                Object.values(yearLvl).forEach(semArr => {
-                    if (Array.isArray(semArr)) totalCount += semArr.length;
-                });
-            });
-        }
-        subjectCountEl.innerText = totalCount;
-    }
-
-    if (document.getElementById('resource-program-name')) {
-        document.getElementById('resource-program-name').innerText = State.activeProgram;
-    }
-    renderActiveProgramButtons();
-
-    const yearSelect = document.getElementById('resource-year-select');
-    const semesterSelect = document.getElementById('resource-semester-select');
-    const yearKeys = Object.keys(program.subjects || {});
-    if (yearSelect) {
-        yearSelect.innerHTML = `<option value="">All Years</option>` + yearKeys.map(yk => `<option value="${yk}">${yk}</option>`).join('');
-        yearSelect.value = State.resourceYearLevel || '';
-    }
-    const selectedYear = State.resourceYearLevel || yearKeys[0] || '';
-    const semesterKeys = selectedYear && program.subjects[selectedYear] ? Object.keys(program.subjects[selectedYear]) : [];
-    if (semesterSelect) {
-        semesterSelect.innerHTML = `<option value="">All Semesters</option>` + semesterKeys.map(sk => `<option value="${sk}">${sk}</option>`).join('');
-        semesterSelect.value = State.resourceSemester || '';
-    }
-
-    const facultyList = document.getElementById('resource-faculty-list');
-    if (facultyList) {
-        facultyList.innerHTML = '';
-
-        // Step 1: Filter based strictly on classification selection criteria 
-        let filteredStaff = [...facultyObjs];
-
-        if (State.facultyFilter === 'part-time') filteredStaff = filteredStaff.filter(f => f.employmentType.toLowerCase().includes('part'));
-        if (State.facultyFilter === 'regular') filteredStaff = filteredStaff.filter(f => f.employmentType === 'Regular' && (f.baseDesignation.includes('Instructor') || f.baseDesignation.includes('Lecturer') || f.baseDesignation.includes('Professor')));
-        if (State.facultyFilter === 'designee') filteredStaff = filteredStaff.filter(f => f.employmentType === 'Regular' && !f.baseDesignation.includes('Instructor') && !f.baseDesignation.includes('Lecturer'));
-
-        if (State.facultyStatusFilter === 'active') filteredStaff = filteredStaff.filter(f => f.active !== false);
-        else if (State.facultyStatusFilter === 'inactive') filteredStaff = filteredStaff.filter(f => f.active === false);
-
-        // Step 2: Card Template Component Builder Closure
-        const createCard = (f) => {
-            const card = document.createElement('div');
-            const isProfInactive = f.active === false;
-
-            card.className = `rounded-2xl bg-white p-3 border mb-2 transition-all flex flex-col gap-1.5 ${isProfInactive
-                ? 'opacity-60 border-dashed border-slate-200 bg-slate-50/50'
-                : 'border-slate-100 shadow-xs hover:border-slate-300 cursor-pointer'
-                }`;
-            card.setAttribute('data-faculty', f.id);
-
-            // Build statuses badge markup explicitly to flag active vs inactive cleanly
-            const statusBadge = isProfInactive
-                ? `<span class="inline-flex items-center text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider bg-red-50 text-red-600 border border-red-100">Inactive</span>`
-                : `<span class="inline-flex items-center text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider bg-emerald-50 text-emerald-600 border border-emerald-100">Active</span>`;
-
-            card.innerHTML = `
-                <div class="flex items-start justify-between gap-2">
-                    <div>
-                        <div class="font-bold text-slate-900 text-xs">${f.name}</div>
-                        <div class="text-[10px] text-slate-400 mt-0.5">${getTitleLabel(f)} • ${f.baseDesignation}</div>
-                    </div>
-                    <div class="flex flex-col items-end gap-1 flex-shrink-0">
-                        <div class="text-[9px] px-1.5 py-0.5 rounded-full bg-slate-100 border text-slate-600 font-medium">${f.employmentType}</div>
-                        ${statusBadge}
-                    </div>
-                </div>
-            `;
-            card.addEventListener('click', () => selectFaculty(f.id));
-            return card;
-        };
-
-        // Step 3: Split into sub-arrays according to operational activity status flags
-        const activeStaff = filteredStaff.filter(f => f.active !== false);
-        const inactiveStaff = filteredStaff.filter(f => f.active === false);
-
-        // Step 4: Render Active block container if matches exist
-        if (activeStaff.length > 0) {
-            const activeHeaderBlock = document.createElement('div');
-            activeHeaderBlock.className = "mb-4";
-            activeHeaderBlock.innerHTML = `<div class="text-[10px] font-bold uppercase tracking-widest text-emerald-600 mb-2 flex items-center gap-1.5">Active Faculty (${activeStaff.length})</div>`;
-
-            const activeCardsWrapper = document.createElement('div');
-            activeStaff.forEach(f => activeCardsWrapper.appendChild(createCard(f)));
-            activeHeaderBlock.appendChild(activeCardsWrapper);
-            facultyList.appendChild(activeHeaderBlock);
-        }
-
-        // Step 5: Render Inactive block container if matches exist
-        if (inactiveStaff.length > 0) {
-            const inactiveHeaderBlock = document.createElement('div');
-            inactiveHeaderBlock.className = "mb-2 mt-2";
-            inactiveHeaderBlock.innerHTML = `<div class="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-1.5">Inactive Faculty (${inactiveStaff.length})</div>`;
-
-            const inactiveCardsWrapper = document.createElement('div');
-            inactiveStaff.forEach(f => inactiveCardsWrapper.appendChild(createCard(f)));
-            inactiveHeaderBlock.appendChild(inactiveCardsWrapper);
-            facultyList.appendChild(inactiveHeaderBlock);
-        }
-
-        // Empty fallbacks handler
-        if (filteredStaff.length === 0) {
-            facultyList.innerHTML = '<div class="text-gray-400 italic text-xs p-4 text-center">No instructors match this selection choice.</div>';
-        }
-    }
-
-    // Curriculum render pipelines
-    const subjectList = document.getElementById('resource-subject-list');
-    if (subjectList) {
-        subjectList.innerHTML = '';
-        if (!program.subjects || Object.keys(program.subjects).length === 0) {
-            subjectList.innerHTML = '<div class="text-gray-500 italic text-xs p-4">No curriculum items loaded for this program.</div>';
-        } else {
-            const yearsToRender = State.resourceYearLevel ? [State.resourceYearLevel] : Object.keys(program.subjects).sort();
-            yearsToRender.forEach(yearKey => {
-                if (!program.subjects[yearKey]) return;
-                const yearSection = document.createElement('div');
-                yearSection.className = 'mb-4 space-y-2';
-                yearSection.innerHTML = `<h4 class="text-xs font-bold text-red-900 tracking-wider uppercase border-b pb-1 mb-2">${yearKey} Hierarchy</h4>`;
-                const semKeys = State.resourceSemester ? [State.resourceSemester] : Object.keys(program.subjects[yearKey] || {});
-                semKeys.forEach(semKey => {
-                    if (!program.subjects[yearKey][semKey]) return;
-                    const semContainer = document.createElement('div');
-                    semContainer.className = 'pl-2 space-y-1.5';
-                    semContainer.innerHTML = `<div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mt-1">${semKey}</div>`;
-                    program.subjects[yearKey][semKey].forEach(sub => {
-                        const hours = getSubjectHourParts(sub);
-                        const pName = State.activeProgram || '';
-                        const isBridging = Boolean(sub.is_bridging) || (typeof getSubjectBridgingStatus === 'function' && getSubjectBridgingStatus(pName, sub.name));
-                        const bridgingBadge = isBridging ? '<span class="bg-orange-100 text-orange-800 border border-orange-300 text-[10px] px-1.5 py-0.5 rounded mr-2 uppercase font-black tracking-wider">BRIDGING</span>' : '';
-                        const subRow = document.createElement('div');
-                        subRow.className = `rounded-2xl ${isBridging ? 'bg-orange-50 border border-orange-200' : 'bg-slate-50'} p-3 flex items-center justify-between text-xs hover:bg-slate-100 transition-all cursor-pointer`;
-                        subRow.setAttribute('role', 'button');
-                        subRow.setAttribute('tabindex', '0');
-                        subRow.setAttribute('title', 'Click to edit subject');
-                        subRow.innerHTML = `
-                            <span class="font-medium text-gray-800 flex-1">${bridgingBadge}${escapeHtml(sub.name)} <span class="text-slate-500 font-medium">(Lec ${hours.lec} + Lab ${hours.lab} = ${hours.units}u)</span></span>
-                            <div class="flex items-center gap-2">
-                                <button type="button" class="subject-edit-button ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">${isAcademicHeadUser() ? 'Edit' : 'Request Edit'}</button>
-                                <button type="button" class="subject-delete-button ml-1 flex-shrink-0 p-1.5 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition" title="Remove subject">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                </button>
-                            </div>
-                        `;
-                        const editButton = subRow.querySelector('.subject-edit-button');
-                        const deleteButton = subRow.querySelector('.subject-delete-button');
-                        editButton?.addEventListener('click', event => {
-                            event.stopPropagation();
-                            editSubject(pName, yearKey, semKey, sub.name, sub.units, isBridging);
-                        });
-                        deleteButton?.addEventListener('click', event => {
-                            event.stopPropagation();
-                            deleteSubjectWithVerification(pName, yearKey, semKey, sub.name, isBridging);
-                        });
-                        subRow.onclick = () => editSubject(pName, yearKey, semKey, sub.name, sub.units, isBridging);
-                        subRow.onkeydown = (event) => {
-                            if (event.key === 'Enter' || event.key === ' ') {
-                                event.preventDefault();
-                                editSubject(pName, yearKey, semKey, sub.name, sub.units, isBridging);
-                            }
-                        };
-                        semContainer.appendChild(subRow);
-                    });
-                    yearSection.appendChild(semContainer);
-                });
-                subjectList.appendChild(yearSection);
-            });
-        }
-    }
-
-    const sectionList = document.getElementById('resource-section-list');
-    if (sectionList) {
-        sectionList.innerHTML = (program.sections || []).map(section => `
-            <div class="rounded-3xl bg-slate-50 p-4 flex items-center justify-between">
-                <span class="text-xs font-medium text-slate-800">${escapeHtml(section)}</span>
-                <button class="text-slate-400 hover:text-red-500"><i data-lucide="trash" class="w-4 h-4"></i></button>
-            </div>
-        `).join('') || '<div class="text-gray-500 italic text-xs p-4">No active sections mapped yet.</div>';
-    }
-}
-
 function setResourceYearLevel(value) {
     State.resourceYearLevel = value;
     if (!value) State.resourceSemester = '';
@@ -5282,20 +5159,16 @@ function renderFacultyStatusPage() {
         <option value="${program}" ${program === activeProgram ? 'selected' : ''}>${program}</option>
     `).join('');
 
-    const facultyObjs = facultyRegistry.filter(f => {
-        if (!f.program) return false;
-        const programs = f.program.split(',').map(p => p.trim());
-        return programs.includes(activeProgram);
-    });
-    const activeStaff = facultyObjs.filter(f => f.active !== false);
-    const inactiveStaff = facultyObjs.filter(f => f.active === false);
+    const facultyObjs = facultyRegistry.filter(f => matchesProgram(f.program, activeProgram));
+    const activeStaff = facultyObjs.filter(isFacultyActive);
+    const inactiveStaff = facultyObjs.filter(f => !isFacultyActive(f));
 
     const buildFacultyCards = (list) => {
         if (!list.length) {
             return '<div class="text-gray-500 italic text-sm">No faculty found for this status.</div>';
         }
         return list.map(f => {
-            const requestedState = f.active === false;
+            const requestedState = !isFacultyActive(f);
             const pendingApproval = getPendingApprovals().some(item => item.type === 'faculty_status' && item.payload.facultyId === f.id);
             const requestButton = isAcademicHeadUser()
                 ? ''
@@ -5307,13 +5180,13 @@ function renderFacultyStatusPage() {
                 : '';
 
             return `
-            <div data-faculty-id="${escapeHtml(f.id)}" class="faculty-status-card w-full rounded-3xl border border-slate-200 bg-slate-50 p-4 mb-3 hover:bg-slate-100 transition-all">
+            <div data-faculty-id="${escapeHtml(f.id)}" class="faculty-status-card w-full rounded-3xl border border-slate-200 bg-slate-50 p-4 mb-3 hover:bg-slate-100 transition-all cursor-pointer">
                 <div class="flex justify-between gap-4 items-start">
                     <div>
                         <div class="text-sm font-semibold text-slate-900">${escapeHtml(f.name)}</div>
                         <div class="text-[11px] text-slate-500 mt-1">${escapeHtml(getTitleLabel(f))} • ${escapeHtml(f.baseDesignation)}</div>
                     </div>
-                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase ${f.active === false ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-emerald-50 text-emerald-700 border border-emerald-100'}">${f.active === false ? 'Inactive' : 'Active'}</span>
+                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase ${!isFacultyActive(f) ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-emerald-50 text-emerald-700 border border-emerald-100'}">${!isFacultyActive(f) ? 'Inactive' : 'Active'}</span>
                 </div>
                 ${pendingBadge}
                 ${requestButton}
@@ -5333,10 +5206,14 @@ function renderFacultyStatusPage() {
                         </div>
                         <button type="button" onclick="openEditActiveProgramModal()" class="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-200">Rename Program</button>
                     </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
                         <div class="rounded-3xl bg-slate-50 p-4 border border-slate-200">
                             <p class="text-xs uppercase tracking-widest text-slate-400 font-semibold">Program</p>
                             <p class="mt-2 font-semibold text-slate-900">${escapeHtml(activeProgram)}</p>
+                        </div>
+                        <div class="rounded-3xl bg-slate-50 p-4 border border-slate-200">
+                            <p class="text-xs uppercase tracking-widest text-slate-400 font-semibold">Total Faculty</p>
+                            <p class="mt-2 font-semibold text-slate-900">${facultyObjs.length}</p>
                         </div>
                         <div class="rounded-3xl bg-slate-50 p-4 border border-slate-200">
                             <p class="text-xs uppercase tracking-widest text-slate-400 font-semibold">Active Faculty</p>
@@ -6644,8 +6521,50 @@ function exportFacultyProfileExcel() {
     const faculty = facultyRegistry.find(f => f.id === selectedId);
     if (!faculty) return showBanner('Faculty profile not found.', 'error');
 
+    const context = typeof selectedContext === 'function' ? selectedContext() : { schoolYear: State.activeSchoolYear, semester: State.activeSemester };
+    const activeSY = (context.schoolYear && context.schoolYear !== 'Academic Year' && context.schoolYear !== 'All School Years')
+        ? context.schoolYear
+        : (State.activeSchoolYear || State.db?.schoolYears?.[0] || '');
+    const syLabel = activeSY ? (String(activeSY).startsWith('AY') ? String(activeSY) : `AY ${activeSY}`) : 'AY';
+
+    const profNameClean = String(faculty.name || '').trim().toLowerCase();
+    let profLoads = (State.db?.loads || []).filter(l =>
+        String(l.prof || '').trim().toLowerCase() === profNameClean &&
+        (!activeSY || l.sy === activeSY)
+    );
+    if (profLoads.length === 0) {
+        profLoads = (State.db?.loads || []).filter(l => String(l.prof || '').trim().toLowerCase() === profNameClean);
+    }
+
+    const firstSemSubs = [];
+    const secondSemSubs = [];
+
+    profLoads.forEach(l => {
+        const subName = String(l.sub || l.subject || '').trim();
+        if (!subName) return;
+        const semRaw = String(l.semester || '1').trim().toLowerCase();
+        if (semRaw === '2' || semRaw.includes('2nd') || semRaw.includes('second')) {
+            if (!secondSemSubs.some(s => s.toLowerCase() === subName.toLowerCase())) {
+                secondSemSubs.push(subName);
+            }
+        } else if (semRaw === '3' || semRaw.includes('summer')) {
+            const subWithTag = `${subName} (Summer)`;
+            if (!secondSemSubs.some(s => s.toLowerCase() === subWithTag.toLowerCase())) {
+                secondSemSubs.push(subWithTag);
+            }
+        } else {
+            if (!firstSemSubs.some(s => s.toLowerCase() === subName.toLowerCase())) {
+                firstSemSubs.push(subName);
+            }
+        }
+    });
+
+    const firstSemSummary = firstSemSubs.length > 0 ? firstSemSubs.join(', ') : 'None';
+    const secondSemSummary = secondSemSubs.length > 0 ? secondSemSubs.join(', ') : 'None';
+
     const rows = [
         ['Name', faculty.name],
+        ['Faculty Email', faculty.email || 'N/A'],
         ['Program', faculty.program],
         ['Employment Type', faculty.employmentType],
         ['Designation / Title', faculty.baseDesignation],
@@ -6657,6 +6576,9 @@ function exportFacultyProfileExcel() {
         ['National Certificate', faculty.nationalCertificate || 'N/A'],
         ['Nature of Appointment', faculty.natureOfAppointment || 'N/A'],
         ['Extension', faculty.extension || 'N/A'],
+        ['Rate / Day', `₱${Number(faculty.ratePerDay || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+        [`Subject Loaded - First Semester (${syLabel})`, firstSemSummary],
+        [`Subject Loaded - Second Semester (${syLabel})`, secondSemSummary],
         ['Remarks', faculty.remarks || 'N/A'],
         ['Baccalaureate', faculty.educationalAttainment?.baccalaureate || 'N/A'],
         ['Masters', faculty.educationalAttainment?.masters || 'N/A'],
@@ -6772,11 +6694,7 @@ function exportFacultyRoster() {
     const filename = `Faculty_Roster_${State.activeProgram.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}`;
     const headers = ['Faculty Name', 'Classification', 'Classification Rank', 'Title/Designation', 'Employment Type', 'Program', 'Status', 'Total Load (Units)', 'License Number', 'Specialization'];
 
-    const programFaculty = facultyRegistry.filter(f => {
-        if (!f.program) return false;
-        const programs = f.program.split(',').map(p => p.trim());
-        return programs.includes(State.activeProgram);
-    });
+    const programFaculty = facultyRegistry.filter(f => matchesProgram(f.program, State.activeProgram));
     const data = programFaculty.map(faculty => {
         const totalLoad = calculateCumulativeLoadHours(faculty.name);
         const rankLabel = faculty.classificationRank ? getClassificationRankLabel(faculty.classification, faculty.classificationRank) : 'N/A';
@@ -6788,7 +6706,7 @@ function exportFacultyRoster() {
             faculty.baseDesignation,
             faculty.employmentType,
             faculty.program,
-            faculty.active ? 'Active' : 'Inactive',
+            isFacultyActive(faculty) ? 'Active' : 'Inactive',
             `${totalLoad} / ${limits ? limits.totalMaxLoad : '45'}`,
             faculty.licenseNumber,
             faculty.specialization
@@ -7637,11 +7555,17 @@ Polytechnic University of the Philippines - Parañaque City Campus`;
         submitLabel: 'Send via System (Direct SMTP)',
         body: `
             <div class="space-y-4">
-                <div class="p-3 bg-blue-50 border border-blue-200 rounded-2xl flex items-start gap-3">
-                    <div class="text-blue-600 mt-0.5"><i data-lucide="mail" class="w-5 h-5"></i></div>
-                    <div class="text-xs text-blue-900 leading-relaxed">
-                        Send official teaching workload schedule to <strong>${escapeHtml(profName)}</strong>. Workloads can be sent to their official <strong>@pup.edu.ph Outlook</strong> webmail, <strong>Gmail</strong>, or directly via system SMTP. Every dispatch is permanently logged under <strong>Academic Head &gt; Manage Emails</strong>.
+                <div class="p-3 bg-blue-50 border border-blue-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div class="flex items-start gap-2.5">
+                        <div class="text-blue-600 mt-0.5"><i data-lucide="mail" class="w-5 h-5"></i></div>
+                        <div class="text-xs text-blue-900 leading-relaxed">
+                            Send official teaching workload schedule to <strong>${escapeHtml(profName)}</strong>. Every dispatch is permanently logged under <strong>Academic Head &gt; Manage Emails</strong>.
+                        </div>
                     </div>
+                    <button type="button" onclick="closeModal(); setTimeout(openEmailAllFacultyWorkloadsModal, 150);" class="flex-shrink-0 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm" title="Email all faculty who have email addresses in their profile">
+                        <i data-lucide="send" class="w-3.5 h-3.5"></i>
+                        <span>Email All Faculty</span>
+                    </button>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -7868,7 +7792,910 @@ Polytechnic University of the Philippines - Parañaque City Campus`;
 
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
+
+function openEmailAllFacultyWorkloadsModal() {
+    const sy = document.getElementById('sy-selector')?.value || State.db.schoolYears?.[0] || 'Academic Year';
+    const semester = document.getElementById('semester-selector')?.value || 'All';
+    const semesterLabel = semester === '1' ? '1st Semester' : semester === '2' ? '2nd Semester' : semester === '3' ? 'Summer Term' : 'All Semesters';
+    const programFilter = document.getElementById('workload-program-filter')?.value || 'All';
+
+    // Get all faculty matching the current program filter
+    const allFaculty = facultyRegistry.filter(f => {
+        if (!f.name) return false;
+        if (programFilter !== 'All') {
+            if (typeof matchesProgram === 'function') {
+                return matchesProgram(f.program, programFilter);
+            }
+            if (f.program) {
+                const progs = f.program.split(',').map(p => p.trim().toLowerCase());
+                return progs.includes(programFilter.toLowerCase());
+            }
+            return false;
+        }
+        return true;
+    });
+
+    if (allFaculty.length === 0) {
+        return openModal({
+            title: 'Batch Email Faculty Workloads',
+            hideSubmit: true,
+            body: `
+                <div class="space-y-4 p-4 text-center">
+                    <div class="mx-auto w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mb-2">
+                        <i data-lucide="users" class="w-6 h-6"></i>
+                    </div>
+                    <h3 class="text-sm font-bold text-slate-800">No Faculty Members Found</h3>
+                    <p class="text-xs text-slate-500">There are no faculty members found matching program: <strong>${escapeHtml(programFilter)}</strong>.</p>
+                    <div class="pt-2">
+                        <button type="button" onclick="closeModal()" class="px-5 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-200 transition">Close</button>
+                    </div>
+                </div>
+            `
+        });
+    }
+
+    const isEmailValid = (email) => Boolean(email && String(email).trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim()));
+
+    const facultyList = allFaculty.map(f => {
+        const loads = State.db.loads.filter(l => 
+            l.prof === f.name && 
+            l.sy === sy && 
+            (programFilter === 'All' || l.program === programFilter) && 
+            (semester === 'All' || String(l.semester) === String(semester))
+        );
+        const totalUnits = loads.reduce((sum, l) => sum + (Number(l.units) || 0), 0);
+        const hasEmail = isEmailValid(f.email);
+
+        return {
+            id: f.id,
+            name: f.name,
+            email: String(f.email || '').trim(),
+            hasEmail: hasEmail,
+            program: f.program || 'General Education',
+            designation: f.baseDesignation || 'Instructor',
+            employmentType: f.employmentType || 'Regular',
+            loads: loads,
+            totalUnits: totalUnits
+        };
+    });
+
+    // Sort: professors with email first (loads first, then A-Z), then professors without email (loads first, then A-Z)
+    facultyList.sort((a, b) => {
+        if (a.hasEmail !== b.hasEmail) {
+            return b.hasEmail ? 1 : -1;
+        }
+        if ((a.loads.length > 0) !== (b.loads.length > 0)) {
+            return b.loads.length - a.loads.length;
+        }
+        return a.name.localeCompare(b.name);
+    });
+
+    const defaultSubjectTemplate = `[PUP-PQ] Official Teaching Workload Assignment - AY ${sy}, ${semesterLabel}`;
+
+    // Generate table rows
+    const facultyRowsHtml = facultyList.map(item => `
+        <tr class="border-b border-slate-100 text-xs hover:bg-slate-50 transition" id="batch-row-${escapeHtml(item.id)}">
+            <td class="p-3 text-center">
+                ${item.hasEmail ? `
+                    <input type="checkbox" 
+                           class="batch-faculty-checkbox rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer transition" 
+                           data-id="${escapeHtml(item.id)}" 
+                           ${item.loads.length > 0 ? 'checked' : ''} 
+                           onchange="updateBatchSelectedCount()" />
+                ` : `
+                    <input type="checkbox" 
+                           class="batch-faculty-checkbox rounded border-slate-200 bg-slate-100 text-slate-300 w-4 h-4 cursor-not-allowed opacity-35 transition" 
+                           data-id="${escapeHtml(item.id)}" 
+                           disabled 
+                           title="Cannot select: ${escapeHtml(item.name)} does not have an email in profile." 
+                           onchange="updateBatchSelectedCount()" />
+                `}
+            </td>
+            <td class="p-3">
+                <div class="font-bold text-slate-900 flex items-center gap-1.5">
+                    <span>${escapeHtml(item.name)}</span>
+                    ${!item.hasEmail ? `<span class="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" title="Email not configured in profile"></span>` : ''}
+                </div>
+                <div class="text-[10px] text-slate-400 mt-0.5">${escapeHtml(item.designation)} &bull; ${escapeHtml(item.employmentType)}</div>
+            </td>
+            <td class="p-3" id="batch-email-cell-${escapeHtml(item.id)}">
+                ${item.hasEmail ? `
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 font-mono">
+                        ${escapeHtml(item.email)}
+                    </span>
+                ` : `
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                            No Email in Profile
+                        </span>
+                        <button type="button" 
+                                onclick="promptInlineSetFacultyEmail('${escapeHtml(item.id)}')" 
+                                class="text-[10px] font-bold text-blue-600 hover:text-blue-800 underline cursor-pointer">
+                            + Add Email
+                        </button>
+                    </div>
+                `}
+            </td>
+            <td class="p-3">
+                ${item.loads.length > 0 
+                    ? `<span class="font-semibold text-slate-800">${item.loads.length} classes <span class="text-slate-400 font-normal">(${item.totalUnits}u)</span></span>`
+                    : `<span class="text-slate-400 italic">0 classes</span>`
+                }
+            </td>
+            <td class="p-3 text-right" id="batch-status-${escapeHtml(item.id)}">
+                ${item.hasEmail ? `
+                    <span class="inline-flex items-center text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700">Ready</span>
+                ` : `
+                    <span class="inline-flex items-center text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider bg-slate-100 text-slate-400" title="Must add an email to enable checkbox selection">Unselectable</span>
+                `}
+            </td>
+        </tr>
+    `).join('');
+
+    // Toggle all enabled checkboxes
+    window.toggleSelectAllBatchFaculty = (checked) => {
+        document.querySelectorAll('.batch-faculty-checkbox:not(:disabled)').forEach(cb => {
+            cb.checked = checked;
+        });
+        updateBatchSelectedCount();
+    };
+
+    window.updateBatchSelectedCount = () => {
+        const checked = document.querySelectorAll('.batch-faculty-checkbox:checked').length;
+        const totalEligible = facultyList.filter(f => f.hasEmail).length;
+        const totalFaculty = facultyList.length;
+
+        const countEl = document.getElementById('batch-selected-count');
+        if (countEl) {
+            countEl.innerText = `${checked} of ${totalEligible} eligible selected (${totalFaculty} professors total)`;
+        }
+
+        const countHeader = document.getElementById('batch-header-eligible-count');
+        if (countHeader) {
+            countHeader.innerText = `${totalEligible} of ${totalFaculty} Ready`;
+        }
+
+        const submitBtn = document.getElementById('btn-batch-send-now');
+        if (submitBtn) {
+            submitBtn.innerText = `Send via System SMTP (${checked})`;
+            submitBtn.disabled = checked === 0;
+            submitBtn.className = checked === 0 
+                ? "px-5 py-2.5 rounded-xl bg-slate-300 text-slate-500 text-xs font-bold cursor-not-allowed transition" 
+                : "px-5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold shadow transition flex items-center gap-1.5 cursor-pointer";
+        }
+    };
+
+    // Inline email setter for unselectable professors
+    window.promptInlineSetFacultyEmail = async (facultyId) => {
+        const faculty = facultyRegistry.find(f => String(f.id) === String(facultyId));
+        if (!faculty) return showBanner('Faculty member not found.', 'error');
+
+        const newEmail = prompt(`Enter profile email address for ${faculty.name}:`, faculty.email || '');
+        if (newEmail === null) return; // user cancelled
+
+        const cleanEmail = String(newEmail).trim();
+        if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+            return showBanner('Please enter a valid email address (e.g. professor@pup.edu.ph).', 'error');
+        }
+
+        faculty.email = cleanEmail;
+        if (typeof updateFacultyAPI === 'function') {
+            updateFacultyAPI(faculty).catch(err => console.error('Failed to update faculty email API:', err));
+        }
+        if (typeof persistState === 'function') {
+            persistState();
+        }
+
+        const listItem = facultyList.find(f => String(f.id) === String(facultyId));
+        if (listItem) {
+            listItem.email = cleanEmail;
+            listItem.hasEmail = true;
+        }
+
+        // Update DOM row
+        const row = document.getElementById(`batch-row-${facultyId}`);
+        if (row) {
+            const cb = row.querySelector('.batch-faculty-checkbox');
+            if (cb) {
+                cb.disabled = false;
+                cb.checked = true;
+                cb.classList.remove('opacity-35', 'cursor-not-allowed', 'bg-slate-100', 'border-slate-200', 'text-slate-300');
+                cb.classList.add('text-emerald-600', 'focus:ring-emerald-500', 'cursor-pointer', 'border-slate-300');
+                cb.removeAttribute('title');
+            }
+            const emailCell = document.getElementById(`batch-email-cell-${facultyId}`);
+            if (emailCell) {
+                emailCell.innerHTML = `
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 font-mono">
+                        ${escapeHtml(cleanEmail)}
+                    </span>
+                `;
+            }
+            const statusCell = document.getElementById(`batch-status-${facultyId}`);
+            if (statusCell) {
+                statusCell.innerHTML = `<span class="inline-flex items-center text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700">Ready</span>`;
+            }
+        }
+
+        updateBatchSelectedCount();
+        showBanner(`Email saved for ${faculty.name}! Checkbox is now enabled and selected.`, 'success');
+    };
+
+    window.dispatchBatchWebmailBcc = (service) => {
+        const selectedCheckboxes = Array.from(document.querySelectorAll('.batch-faculty-checkbox:checked'));
+        const selectedIds = selectedCheckboxes.map(cb => cb.dataset.id);
+        const selectedFaculty = facultyList.filter(f => selectedIds.includes(String(f.id)) && f.hasEmail);
+        if (!selectedFaculty.length) {
+            return showBanner('Please select at least one faculty member with a valid email.', 'error');
+        }
+        const bccList = selectedFaculty.map(f => f.email).join(',');
+        const subject = document.getElementById('batch-email-subject')?.value.trim() || defaultSubjectTemplate;
+        const notes = document.getElementById('batch-email-notes')?.value.trim() || '';
+
+        const genericBody = `Dear Faculty Members,\n\nOfficial Teaching Workload Assignments for Academic Year ${sy}, ${semesterLabel} have been finalized.\n\n${notes ? `Additional Instructions:\n${notes}\n\n` : ''}Please check your individual timetable under the Academic Management System or coordinate with the Academic Head office if you have any questions.\n\nWarm regards,\nAcademic Administration\nPolytechnic University of the Philippines - Parañaque City Campus`;
+
+        if (service === 'outlook') {
+            const url = `https://outlook.office.com/mail/deeplink/compose?bcc=${encodeURIComponent(bccList)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(genericBody)}`;
+            window.open(url, '_blank');
+            showBanner(`Opened PUP Outlook with ${selectedFaculty.length} recipients in BCC!`, 'success');
+        } else if (service === 'gmail') {
+            const url = `https://mail.google.com/mail/?view=cm&fs=1&bcc=${encodeURIComponent(bccList)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(genericBody)}`;
+            window.open(url, '_blank');
+            showBanner(`Opened Gmail with ${selectedFaculty.length} recipients in BCC!`, 'success');
+        } else {
+            const url = `mailto:?bcc=${encodeURIComponent(bccList)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(genericBody)}`;
+            window.open(url, '_blank');
+            showBanner(`Opened default mail client with ${selectedFaculty.length} recipients in BCC!`, 'info');
+        }
+    };
+
+    // Helper to build individual faculty HTML workload table
+    const generateFacultyHtml = (fItem, customNotes) => {
+        const loads = fItem.loads;
+        const totalUnits = fItem.totalUnits;
+
+        loads.sort((a, b) => {
+            const dayOrder = Days.indexOf(a.day) - Days.indexOf(b.day);
+            if (dayOrder !== 0) return dayOrder;
+            return parseTimeStr(a.time.split(' - ')[0]) - parseTimeStr(b.time.split(' - ')[0]);
+        });
+
+        return `
+            <div style="font-family: Arial, sans-serif; color: #333; max-width: 650px; line-height: 1.5; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+                <div style="background-color: #7f0000; color: #ffffff; padding: 18px 24px;">
+                    <h2 style="margin: 0; font-size: 18px; font-weight: bold; letter-spacing: 0.5px;">Polytechnic University of the Philippines</h2>
+                    <p style="margin: 4px 0 0 0; font-size: 13px; opacity: 0.9;">Parañaque City Campus &bull; Official Teaching Workload Assignment</p>
+                </div>
+                <div style="padding: 24px;">
+                    <p style="margin-top: 0;">Dear <strong>${escapeHtml(fItem.name)}</strong>,</p>
+                    <p>Below is your official teaching workload assignment for <strong>AY ${escapeHtml(sy)}, ${escapeHtml(semesterLabel)}</strong>:</p>
+                    
+                    <table style="width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 12px;">
+                        <thead>
+                            <tr style="background-color: #f1f5f9; text-align: left; color: #475569;">
+                                <th style="padding: 10px 8px; border: 1px solid #e2e8f0;">Subject</th>
+                                <th style="padding: 10px 8px; border: 1px solid #e2e8f0;">Section</th>
+                                <th style="padding: 10px 8px; border: 1px solid #e2e8f0;">Day & Time</th>
+                                <th style="padding: 10px 8px; border: 1px solid #e2e8f0;">Room</th>
+                                <th style="padding: 10px 8px; border: 1px solid #e2e8f0;">Type</th>
+                                <th style="padding: 10px 8px; border: 1px solid #e2e8f0; text-align: center;">Units</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${loads.map(l => `
+                                <tr>
+                                    <td style="padding: 8px; border: 1px solid #e2e8f0; font-weight: 600; color: #1e293b;">${escapeHtml(l.sub)}</td>
+                                    <td style="padding: 8px; border: 1px solid #e2e8f0; color: #475569;">${escapeHtml(l.sec)}</td>
+                                    <td style="padding: 8px; border: 1px solid #e2e8f0; color: #475569;">${escapeHtml(l.day)} ${escapeHtml(l.time)}</td>
+                                    <td style="padding: 8px; border: 1px solid #e2e8f0; color: #475569;">${escapeHtml(formatBuildingRoom(l))}</td>
+                                    <td style="padding: 8px; border: 1px solid #e2e8f0; color: #475569;">${escapeHtml(l.component_type || 'Lec')}</td>
+                                    <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: center; font-weight: bold; color: #1e293b;">${Number(l.units) || 0}</td>
+                                </tr>
+                            `).join('')}
+                            <tr style="background-color: #f8fafc; font-weight: bold;">
+                                <td colspan="5" style="padding: 10px 8px; border: 1px solid #e2e8f0; text-align: right; color: #1e293b;">Total Cumulative Units:</td>
+                                <td style="padding: 10px 8px; border: 1px solid #e2e8f0; text-align: center; color: #7f0000; font-size: 13px;">${totalUnits} Units</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    ${customNotes ? `
+                        <div style="background-color: #fef2f2; border-left: 4px solid #7f0000; padding: 12px 14px; margin: 18px 0; font-size: 13px; color: #991b1b; border-radius: 4px;">
+                            <strong>Important Note:</strong> ${escapeHtml(customNotes)}
+                        </div>
+                    ` : ''}
+
+                    <p style="font-size: 12px; color: #64748b; line-height: 1.5; margin-top: 24px;">
+                        Please review your schedule and confirm your availability. If adjustments are needed, kindly contact the Academic Head office.<br/><br/>
+                        <em>Polytechnic University of the Philippines &bull; Parañaque City Campus</em>
+                    </p>
+                </div>
+            </div>
+        `;
+    };
+
+    const initialEligibleCount = facultyList.filter(f => f.hasEmail).length;
+    const initialWithoutEmailCount = facultyList.filter(f => !f.hasEmail).length;
+
+    openModal({
+        title: 'Batch Email Faculty Workloads',
+        hideSubmit: true,
+        body: `
+            <div class="space-y-4">
+                <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-start justify-between gap-3">
+                    <div class="flex items-start gap-2.5">
+                        <div class="text-emerald-600 mt-0.5"><i data-lucide="send" class="w-5 h-5"></i></div>
+                        <div>
+                            <div class="text-xs font-bold text-emerald-950 flex items-center gap-2">
+                                <span>Email Workloads to Faculty Members</span>
+                                <span id="batch-header-eligible-count" class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900">${initialEligibleCount} of ${facultyList.length} Ready</span>
+                            </div>
+                            <div class="text-[11px] text-emerald-800 mt-1 leading-relaxed">
+                                Select professors from the list to receive personalized teaching workload emails for <strong>AY ${escapeHtml(sy)}, ${escapeHtml(semesterLabel)}</strong>.
+                                <br/><span class="text-slate-600 font-semibold">&bull; Note: Checkboxes can only be clicked if the professor already has an email in their profile.</span>
+                                ${initialWithoutEmailCount > 0 ? `<br/><span class="text-amber-800 font-semibold">&bull; ${initialWithoutEmailCount} professor(s) have no email. Click <u>+ Add Email</u> next to their name to enable selection.</span>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                    <span id="batch-selected-count" class="flex-shrink-0 text-[11px] font-bold px-2.5 py-1 bg-white text-emerald-800 rounded-full border border-emerald-300 shadow-xs">
+                        ${facultyList.filter(f => f.hasEmail && f.loads.length > 0).length} of ${initialEligibleCount} selected
+                    </span>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Email Subject Line</label>
+                    <input type="text" id="batch-email-subject" value="${escapeHtml(defaultSubjectTemplate)}" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-[#7f0000]" />
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">General Notes / Instructions (Optional)</label>
+                    <textarea id="batch-email-notes" rows="2" placeholder="e.g. Please confirm your availability and acknowledge receipt of your official workload assignment." class="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-700 outline-none focus:ring-2 focus:ring-[#7f0000]"></textarea>
+                </div>
+
+                <!-- Recipient Faculty Table -->
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="text-xs font-bold text-slate-700 uppercase">Select Recipients (${facultyList.length} Professors Total)</label>
+                        <div class="flex items-center gap-2">
+                            <button type="button" onclick="toggleSelectAllBatchFaculty(true)" class="text-[10px] text-emerald-700 hover:text-emerald-900 font-bold cursor-pointer">Select All Eligible</button>
+                            <span class="text-slate-300">&bull;</span>
+                            <button type="button" onclick="toggleSelectAllBatchFaculty(false)" class="text-[10px] text-slate-500 hover:text-slate-700 font-bold cursor-pointer">Deselect All</button>
+                        </div>
+                    </div>
+                    <div class="border border-slate-200 rounded-2xl overflow-hidden max-h-56 overflow-y-auto custom-scrollbar">
+                        <table class="w-full text-left">
+                            <thead class="bg-slate-100 text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200 sticky top-0 z-10">
+                                <tr>
+                                    <th class="p-3 w-10 text-center">Select</th>
+                                    <th class="p-3">Faculty Professor</th>
+                                    <th class="p-3">Email in Profile</th>
+                                    <th class="p-3">Workload</th>
+                                    <th class="p-3 text-right">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${facultyRowsHtml}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Progress container during send -->
+                <div id="batch-progress-box" class="hidden p-3.5 bg-blue-50 border border-blue-200 rounded-2xl">
+                    <div class="flex items-center justify-between text-xs font-bold text-blue-900 mb-1.5">
+                        <span id="batch-progress-label">Preparing dispatch...</span>
+                        <span id="batch-progress-percent">0%</span>
+                    </div>
+                    <div class="w-full bg-blue-200 rounded-full h-2 overflow-hidden">
+                        <div id="batch-progress-bar" class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <!-- 1-Click Webmail BCC Bar -->
+                <div class="border-t border-slate-200 pt-3">
+                    <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1.5 flex items-center gap-1.5">
+                        <i data-lucide="external-link" class="w-3.5 h-3.5 text-slate-400"></i>
+                        Or Open Webmail in 1-Click (BCC All Selected)
+                    </label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button type="button" onclick="dispatchBatchWebmailBcc('outlook')" class="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-[#0078d4] hover:bg-[#0060aa] text-white text-xs font-semibold shadow-xs transition cursor-pointer">
+                            <i data-lucide="mail" class="w-3.5 h-3.5"></i>
+                            <span>PUP Outlook BCC</span>
+                        </button>
+                        <button type="button" onclick="dispatchBatchWebmailBcc('gmail')" class="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-[#ea4335] hover:bg-[#d93025] text-white text-xs font-semibold shadow-xs transition cursor-pointer">
+                            <i data-lucide="send" class="w-3.5 h-3.5"></i>
+                            <span>Gmail BCC</span>
+                        </button>
+                        <button type="button" onclick="dispatchBatchWebmailBcc('mailto')" class="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-semibold shadow-xs transition cursor-pointer">
+                            <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                            <span>Mail App BCC</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Footer Action Buttons -->
+                <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-200">
+                    <button type="button" onclick="closeModal()" class="px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 transition">
+                        Cancel
+                    </button>
+                    <button type="button" id="btn-batch-send-now" onclick="startBatchSendWorkloadEmails()" class="px-5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold shadow transition flex items-center gap-1.5">
+                        <i data-lucide="send" class="w-3.5 h-3.5"></i>
+                        <span>Send via System SMTP</span>
+                    </button>
+                </div>
+            </div>
+        `
+    });
+
+    window.updateBatchSelectedCount();
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+
+    // Batch send execution engine
+    window.startBatchSendWorkloadEmails = async () => {
+        const selectedCheckboxes = Array.from(document.querySelectorAll('.batch-faculty-checkbox:checked'));
+        const selectedIds = selectedCheckboxes.map(cb => cb.dataset.id);
+        const selectedList = facultyList.filter(f => selectedIds.includes(String(f.id)) && f.hasEmail);
+
+        if (!selectedList.length) {
+            return showBanner('Please select at least one faculty member with a valid email to send.', 'error');
+        }
+
+        const subjectTemplate = document.getElementById('batch-email-subject')?.value.trim() || defaultSubjectTemplate;
+        const notes = document.getElementById('batch-email-notes')?.value.trim() || '';
+
+        const progressBox = document.getElementById('batch-progress-box');
+        const progressLabel = document.getElementById('batch-progress-label');
+        const progressPercent = document.getElementById('batch-progress-percent');
+        const progressBar = document.getElementById('batch-progress-bar');
+        const sendBtn = document.getElementById('btn-batch-send-now');
+
+        if (progressBox) progressBox.classList.remove('hidden');
+        if (sendBtn) {
+            sendBtn.disabled = true;
+            sendBtn.innerText = 'Dispatching...';
+            sendBtn.className = "px-5 py-2.5 rounded-xl bg-slate-400 text-white text-xs font-bold cursor-not-allowed";
+        }
+
+        let sentSuccessCount = 0;
+        let failedCount = 0;
+
+        for (let i = 0; i < selectedList.length; i++) {
+            const item = selectedList[i];
+            const currentNum = i + 1;
+            const percent = Math.round((currentNum / selectedList.length) * 100);
+
+            if (progressLabel) progressLabel.innerText = `Dispatching to ${item.name} (${currentNum}/${selectedList.length})...`;
+            if (progressPercent) progressPercent.innerText = `${percent}%`;
+            if (progressBar) progressBar.style.width = `${percent}%`;
+
+            const statusCell = document.getElementById(`batch-status-${item.id}`);
+            if (statusCell) {
+                statusCell.innerHTML = `<span class="inline-flex items-center text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider bg-blue-100 text-blue-700 animate-pulse">Sending...</span>`;
+            }
+
+            const personalizedSubject = `${subjectTemplate} - ${item.name}`;
+            const htmlBody = generateFacultyHtml(item, notes);
+
+            try {
+                await apiFetch('/api/emails', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        recipient: item.email,
+                        recipient_email: item.email,
+                        recipient_name: item.name,
+                        subject: personalizedSubject,
+                        body: htmlBody,
+                        status: 'sent'
+                    })
+                });
+
+                sentSuccessCount++;
+                if (statusCell) {
+                    statusCell.innerHTML = `<span class="inline-flex items-center text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700">Sent ✓</span>`;
+                }
+            } catch (err) {
+                console.error(`Failed to email ${item.name}:`, err);
+                failedCount++;
+                if (statusCell) {
+                    statusCell.innerHTML = `<span class="inline-flex items-center text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider bg-red-100 text-red-700">Failed ✕</span>`;
+                }
+            }
+        }
+
+        if (progressLabel) progressLabel.innerText = `Dispatch complete! Successfully delivered to ${sentSuccessCount} faculty member(s).`;
+        if (sendBtn) {
+            sendBtn.innerText = 'All Sent!';
+            sendBtn.className = "px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold";
+        }
+
+        showBanner(`Successfully processed ${sentSuccessCount} faculty workload email(s)!`, 'success');
+        setTimeout(() => {
+            closeModal();
+        }, 1500);
+    };
+}
+
+function openEmailSectionModal() {
+    const sec = document.getElementById('view-section-select')?.value;
+    if (!sec) {
+        return showBanner('Please select a section first.', 'error');
+    }
+    const sy = document.getElementById('sy-selector')?.value || State.db.schoolYears?.[0] || 'Academic Year';
+    const semester = document.getElementById('semester-selector')?.value || 'All';
+    const semesterLabel = semester === '1' ? '1st Semester' : semester === '2' ? '2nd Semester' : semester === '3' ? 'Summer Term' : 'All Semesters';
+    const loads = State.db.loads.filter(l => l.sec === sec && l.sy === sy && (semester === 'All' || String(l.semester) === String(semester)));
+
+    if (!loads.length) {
+        return showBanner(`No timetable records found for section ${sec} in this term.`, 'error');
+    }
+
+    const totalUnits = loads.reduce((sum, l) => sum + (Number(l.units) || 0), 0);
+
+    loads.sort((a, b) => {
+        const dayOrder = Days.indexOf(a.day) - Days.indexOf(b.day);
+        if (dayOrder !== 0) return dayOrder;
+        return parseTimeStr(a.time.split(' - ')[0]) - parseTimeStr(b.time.split(' - ')[0]);
+    });
+
+    const subjectRowsHtml = loads.map(l => `
+        <tr class="border-b border-slate-100 text-xs hover:bg-slate-50">
+            <td class="p-2 font-medium text-slate-800">${escapeHtml(l.sub)}</td>
+            <td class="p-2 text-slate-600">${escapeHtml(l.prof || 'TBA')}</td>
+            <td class="p-2 text-slate-600">${escapeHtml(l.day)} ${escapeHtml(l.time)}</td>
+            <td class="p-2 text-slate-600">${escapeHtml(formatBuildingRoom(l))}</td>
+            <td class="p-2 text-slate-600">${escapeHtml(l.component_type || 'Lec')}</td>
+            <td class="p-2 font-bold text-slate-800 text-center">${Number(l.units) || 0}u</td>
+        </tr>
+    `).join('');
+
+    const defaultSubject = `[PUP-PQ] Official Class Timetable - ${sec} (AY ${sy}, ${semesterLabel})`;
+
+    // Retrieve any previously saved Class President name and email for this section
+    const savedPresName = localStorage.getItem(`pup_class_pres_name_${sec}`) || '';
+    const savedPresEmail = localStorage.getItem(`pup_class_pres_email_${sec}`) || '';
+
+    // Plain text generator for webmail clients
+    const buildPlainTextBody = (presName = '', customNotes = '') => {
+        const recipientGreeting = presName ? `Dear ${presName},` : `Dear Class President & Section Officers of ${sec},`;
+        const scheduleLines = loads.map((l, i) => 
+            `  ${i + 1}. ${l.sub}\n     Instructor: ${l.prof || 'TBA'} | Schedule: ${l.day} ${l.time}\n     Room: ${formatBuildingRoom(l)} | Type: ${l.component_type || 'Lec'} | Units: ${Number(l.units) || 0}u`
+        ).join('\n\n');
+
+        return `${recipientGreeting}
+
+Here is the official class schedule timetable for Section ${sec} for AY ${sy}, ${semesterLabel}:
+
+=======================================================
+OFFICIAL SECTION CLASS TIMETABLE
+=======================================================
+Section: ${sec}
+Academic Term: AY ${sy}, ${semesterLabel}
+Total Subjects: ${loads.length}
+Total Cumulative Units: ${totalUnits} Units
+=======================================================
+
+CLASS SCHEDULE:
+${scheduleLines}
+
+=======================================================
+Total Units: ${totalUnits} Units
+=======================================================
+${customNotes ? `\nAdditional Notes / Room Updates:\n${customNotes}\n` : ''}
+Please disseminate this official schedule to all students in your section. If there are any schedule conflicts or questions, kindly coordinate with the Academic Head office.
+
+Warm regards,
+Academic Administration
+Polytechnic University of the Philippines - Parañaque City Campus`;
+    };
+
+    // Rich HTML email body for direct SMTP & system archive
+    const buildHtmlBody = (presName = '', customNotes = '') => {
+        const recipientGreeting = presName ? `Dear <strong>${escapeHtml(presName)}</strong>,` : `Dear <strong>Class President & Section Officers of ${escapeHtml(sec)}</strong>,`;
+        return `
+        <div style="font-family: Arial, sans-serif; color: #333; max-width: 650px; line-height: 1.5; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+            <div style="background-color: #7f0000; color: #ffffff; padding: 18px 24px;">
+                <h2 style="margin: 0; font-size: 18px; font-weight: bold; letter-spacing: 0.5px;">Polytechnic University of the Philippines</h2>
+                <p style="margin: 4px 0 0 0; font-size: 13px; opacity: 0.9;">Parañaque City Campus &bull; Official Section Timetable</p>
+            </div>
+            <div style="padding: 24px;">
+                <p style="margin-top: 0;">${recipientGreeting}</p>
+                <p>Below is the official class schedule timetable for <strong>Section ${escapeHtml(sec)}</strong> for <strong>AY ${escapeHtml(sy)}, ${escapeHtml(semesterLabel)}</strong>:</p>
+                
+                <table style="width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 12px;">
+                    <thead>
+                        <tr style="background-color: #f1f5f9; text-align: left; color: #475569;">
+                            <th style="padding: 10px 8px; border: 1px solid #e2e8f0;">Subject</th>
+                            <th style="padding: 10px 8px; border: 1px solid #e2e8f0;">Instructor</th>
+                            <th style="padding: 10px 8px; border: 1px solid #e2e8f0;">Day & Time</th>
+                            <th style="padding: 10px 8px; border: 1px solid #e2e8f0;">Room</th>
+                            <th style="padding: 10px 8px; border: 1px solid #e2e8f0;">Type</th>
+                            <th style="padding: 10px 8px; border: 1px solid #e2e8f0; text-align: center;">Units</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${loads.map(l => `
+                            <tr>
+                                <td style="padding: 8px; border: 1px solid #e2e8f0; font-weight: 600; color: #1e293b;">${escapeHtml(l.sub)}</td>
+                                <td style="padding: 8px; border: 1px solid #e2e8f0; color: #475569;">${escapeHtml(l.prof || 'TBA')}</td>
+                                <td style="padding: 8px; border: 1px solid #e2e8f0; color: #475569;">${escapeHtml(l.day)} ${escapeHtml(l.time)}</td>
+                                <td style="padding: 8px; border: 1px solid #e2e8f0; color: #475569;">${escapeHtml(formatBuildingRoom(l))}</td>
+                                <td style="padding: 8px; border: 1px solid #e2e8f0; color: #475569;">${escapeHtml(l.component_type || 'Lec')}</td>
+                                <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: center; font-weight: bold; color: #1e293b;">${Number(l.units) || 0}</td>
+                            </tr>
+                        `).join('')}
+                        <tr style="background-color: #f8fafc; font-weight: bold;">
+                            <td colspan="5" style="padding: 10px 8px; border: 1px solid #e2e8f0; text-align: right; color: #1e293b;">Total Cumulative Units:</td>
+                            <td style="padding: 10px 8px; border: 1px solid #e2e8f0; text-align: center; color: #7f0000; font-size: 13px;">${totalUnits} Units</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                ${customNotes ? `
+                    <div style="background-color: #fef2f2; border-left: 4px solid #7f0000; padding: 12px 14px; margin: 18px 0; font-size: 13px; color: #991b1b; border-radius: 4px;">
+                        <strong>Important Note / Room Advisory:</strong> ${escapeHtml(customNotes)}
+                    </div>
+                ` : ''}
+
+                <p style="font-size: 12px; color: #64748b; line-height: 1.5; margin-top: 24px;">
+                    Please disseminate this schedule to your classmates. For any concerns or room adjustments, kindly consult the Academic Head office.<br/><br/>
+                    <em>Polytechnic University of the Philippines &bull; Parañaque City Campus</em>
+                </p>
+            </div>
+        </div>
+        `;
+    };
+
+    // Global 1-click dispatcher for section timetables
+    window.dispatchSection1Click = async (service) => {
+        const presName = document.getElementById('email-section-recipient-name')?.value.trim() || '';
+        const recipientEmail = document.getElementById('email-section-recipient-email')?.value.trim();
+        const subject = document.getElementById('email-section-subject')?.value.trim();
+        const notes = document.getElementById('email-section-notes')?.value.trim() || '';
+
+        if (!recipientEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) {
+            return showBanner('Please provide a valid recipient email address.', 'error');
+        }
+        if (!subject) {
+            return showBanner('Please provide an email subject line.', 'error');
+        }
+
+        // Save class president info for this section to local storage for quick access
+        if (presName) localStorage.setItem(`pup_class_pres_name_${sec}`, presName);
+        if (recipientEmail) localStorage.setItem(`pup_class_pres_email_${sec}`, recipientEmail);
+
+        const plainBody = buildPlainTextBody(presName, notes);
+        const htmlBody = buildHtmlBody(presName, notes);
+
+        // Always log dispatch into Manage Emails database
+        try {
+            await apiFetch('/api/emails', {
+                method: 'POST',
+                body: JSON.stringify({
+                    recipient: recipientEmail,
+                    recipient_email: recipientEmail,
+                    recipient_name: presName || `Class President (${sec})`,
+                    subject: subject,
+                    body: htmlBody,
+                    status: 'sent'
+                })
+            });
+        } catch (e) {
+            console.warn('Logging section timetable dispatch to backend returned:', e);
+        }
+
+        if (service === 'outlook') {
+            const outlookUrl = `https://outlook.office.com/mail/deeplink/compose?to=${encodeURIComponent(recipientEmail)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(plainBody)}`;
+            window.open(outlookUrl, '_blank');
+            closeModal();
+            showBanner(`Opened 1-Click PUP Outlook Webmail & logged to Manage Emails!`, 'success');
+        } else if (service === 'gmail') {
+            const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(recipientEmail)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(plainBody)}`;
+            window.open(gmailUrl, '_blank');
+            closeModal();
+            showBanner(`Opened 1-Click Gmail & logged to Manage Emails!`, 'success');
+        } else if (service === 'mailto') {
+            const mailtoUrl = `mailto:${encodeURIComponent(recipientEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(plainBody)}`;
+            window.open(mailtoUrl, '_blank');
+            closeModal();
+            showBanner(`Opened default mail client & logged to Manage Emails!`, 'info');
+        }
+    };
+
+    window.setSectionEmailDomainShortcut = (domain) => {
+        const input = document.getElementById('email-section-recipient-email');
+        if (!input) return;
+        let val = input.value.trim();
+        if (!val) {
+            const nameInput = document.getElementById('email-section-recipient-name')?.value.trim();
+            const clean = (nameInput || sec).toLowerCase().replace(/[^a-z0-9]/g, '.').replace(/\.+/g, '.').replace(/^\.|\.$/g, '');
+            input.value = `${clean}@${domain}`;
+        } else if (val.includes('@')) {
+            const userPart = val.split('@')[0];
+            input.value = `${userPart}@${domain}`;
+        } else {
+            input.value = `${val}@${domain}`;
+        }
+        input.focus();
+    };
+
+    openModal({
+        title: `Email Section Timetable (${sec})`,
+        submitLabel: 'Send via System (Direct SMTP)',
+        body: `
+            <div class="space-y-4">
+                <div class="p-3 bg-blue-50 border border-blue-200 rounded-2xl flex items-start gap-3">
+                    <div class="text-blue-600 mt-0.5"><i data-lucide="mail" class="w-5 h-5"></i></div>
+                    <div class="text-xs text-blue-900 leading-relaxed">
+                        Send the official class schedule for <strong>${escapeHtml(sec)}</strong> directly to the <strong>Class President</strong> or section officers. You can dispatch via <strong>PUP Outlook</strong>, <strong>Gmail</strong>, or direct system SMTP. All dispatches are saved in <strong>Academic Head &gt; Manage Emails</strong>.
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">
+                            Recipient Name (e.g. Class President) <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" id="email-section-recipient-name" value="${escapeHtml(savedPresName)}" placeholder="e.g. Juan Dela Cruz (Class President)" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-[#7f0000]" required />
+                    </div>
+                    <div>
+                        <div class="flex items-center justify-between mb-1">
+                            <label class="text-xs font-bold text-slate-600 uppercase">Recipient Email <span class="text-red-500">*</span></label>
+                            <div class="flex items-center gap-1">
+                                <button type="button" onclick="setSectionEmailDomainShortcut('pup.edu.ph')" class="text-[10px] bg-amber-50 hover:bg-amber-100 text-amber-900 font-semibold px-1.5 py-0.5 rounded border border-amber-200" title="Switch domain to official PUP Outlook">@pup.edu.ph</button>
+                                <button type="button" onclick="setSectionEmailDomainShortcut('gmail.com')" class="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-1.5 py-0.5 rounded border border-slate-300" title="Switch domain to Gmail">@gmail.com</button>
+                            </div>
+                        </div>
+                        <input type="email" id="email-section-recipient-email" value="${escapeHtml(savedPresEmail)}" placeholder="e.g. classpresident@pup.edu.ph" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-[#7f0000]" required />
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Subject</label>
+                    <input type="text" id="email-section-subject" value="${escapeHtml(defaultSubject)}" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-[#7f0000]" />
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Timetable Preview (${loads.length} subjects &middot; ${totalUnits} units)</label>
+                    <div class="border border-slate-200 rounded-xl overflow-hidden max-h-40 overflow-y-auto">
+                        <table class="w-full text-left">
+                            <thead class="bg-slate-100 text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200">
+                                <tr>
+                                    <th class="p-2">Subject</th>
+                                    <th class="p-2">Instructor</th>
+                                    <th class="p-2">Schedule</th>
+                                    <th class="p-2">Room</th>
+                                    <th class="p-2">Type</th>
+                                    <th class="p-2 text-center">Units</th>
+                                </tr>
+                            </thead>
+                            <tbody>${subjectRowsHtml}</tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Additional Notes / Room Advisories (Optional)</label>
+                    <textarea id="email-section-notes" rows="2" placeholder="e.g. Please take note of room assignments and inform your classmates accordingly." class="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-700 outline-none focus:ring-2 focus:ring-[#7f0000]"></textarea>
+                </div>
+
+                <!-- Attachments & Download Option -->
+                <div class="p-3 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-2.5">
+                        <div class="p-2 bg-amber-100 text-amber-800 rounded-xl">
+                            <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+                        </div>
+                        <div>
+                            <div class="text-xs font-bold text-amber-950">Attach Official Excel Timetable (.xlsx)</div>
+                            <div class="text-[11px] text-amber-800">The section officer will receive the formatted spreadsheet file directly with the email.</div>
+                        </div>
+                    </div>
+                    <button type="button" onclick="exportSectionTimetable('${escapeHtml(sec)}')" class="px-3 py-1.5 bg-white border border-amber-300 text-amber-900 rounded-xl text-xs font-bold hover:bg-amber-100 shadow-sm transition flex items-center gap-1.5 flex-shrink-0" title="Download copy to your computer right now">
+                        <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                        <span>Download Now</span>
+                    </button>
+                </div>
+
+                <!-- 1-Click Action Dispatch Bar -->
+                <div class="border-t border-slate-200 pt-3">
+                    <label class="block text-xs font-bold text-slate-700 uppercase mb-2 flex items-center gap-1.5">
+                        <i data-lucide="zap" class="w-4 h-4 text-amber-500"></i>
+                        1-Click Instant Dispatch (Pre-filled &amp; Logged)
+                    </label>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <button type="button" onclick="dispatchSection1Click('outlook')" class="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-[#0078d4] hover:bg-[#0060aa] text-white text-xs font-semibold shadow-sm transition-all transform active:scale-95" title="Opens Microsoft 365 Outlook with timetable prefilled and logs to Manage Emails">
+                            <i data-lucide="mail" class="w-4 h-4"></i>
+                            <span>PUP Outlook Web</span>
+                        </button>
+                        <button type="button" onclick="dispatchSection1Click('gmail')" class="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-[#ea4335] hover:bg-[#d93025] text-white text-xs font-semibold shadow-sm transition-all transform active:scale-95" title="Opens Google Gmail with timetable prefilled and logs to Manage Emails">
+                            <i data-lucide="send" class="w-4 h-4"></i>
+                            <span>Gmail Web</span>
+                        </button>
+                        <button type="button" onclick="dispatchSection1Click('mailto')" class="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-semibold shadow-sm transition-all transform active:scale-95" title="Opens Default Mail Client / Desktop Outlook and logs to Manage Emails">
+                            <i data-lucide="external-link" class="w-4 h-4"></i>
+                            <span>Mail App</span>
+                        </button>
+                    </div>
+                    <p class="text-[11px] text-slate-500 mt-1.5 italic">
+                        Tip: Clicking any 1-Click button opens the webmail composer with the complete section timetable pre-filled, and logs the dispatch under <strong>Academic Head &gt; Manage Emails</strong>.
+                    </p>
+                </div>
+            </div>
+        `,
+        onSubmit: async () => {
+            const presName = document.getElementById('email-section-recipient-name')?.value.trim() || '';
+            const recipientEmail = document.getElementById('email-section-recipient-email')?.value.trim();
+            const subject = document.getElementById('email-section-subject')?.value.trim();
+            const notes = document.getElementById('email-section-notes')?.value.trim() || '';
+
+            if (!recipientEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) {
+                return showBanner('Please provide a valid recipient email address.', 'error');
+            }
+            if (!subject) {
+                return showBanner('Please provide an email subject line.', 'error');
+            }
+
+            // Save class president details to local storage
+            if (presName) localStorage.setItem(`pup_class_pres_name_${sec}`, presName);
+            if (recipientEmail) localStorage.setItem(`pup_class_pres_email_${sec}`, recipientEmail);
+
+            const bodyHtml = buildHtmlBody(presName, notes);
+
+            // Generate formatted Excel section timetable attachment using ExcelJS
+            let attachments = [];
+            const sanitizedSec = sec.replace(/[^a-zA-Z0-9_-]/g, '_');
+            const sanitizedTerm = `${sy}_${semesterLabel}`.replace(/[^a-zA-Z0-9_-]/g, '_');
+            const attachmentFilename = `Section_Timetable_${sanitizedSec}_${sanitizedTerm}.xlsx`;
+
+            try {
+                if (typeof window.buildSectionTimetableWorkbookBuffer === 'function') {
+                    const b64Data = await window.buildSectionTimetableWorkbookBuffer(sec);
+                    if (b64Data) {
+                        attachments.push({
+                            filename: attachmentFilename,
+                            content: b64Data,
+                            encoding: 'base64',
+                            contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                        });
+                    }
+                }
+            } catch (excelJsErr) {
+                console.warn('Could not generate ExcelJS formatted attachment for section timetable:', excelJsErr);
+            }
+
+            try {
+                const res = await apiFetch('/api/emails', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        recipient: recipientEmail,
+                        recipient_email: recipientEmail,
+                        recipient_name: presName || `Class President (${sec})`,
+                        subject: subject,
+                        body: bodyHtml,
+                        status: 'sent',
+                        attachments: attachments
+                    })
+                });
+                closeModal();
+                if (res?.delivery?.delivered) {
+                    showBanner(`Section timetable & Excel file delivered directly to ${recipientEmail} via SMTP!`, 'success');
+                } else {
+                    showBanner(`Timetable email logged to Manage Emails! (Configure SMTP in .env for direct server delivery, or use the 1-Click Outlook button).`, 'info');
+                }
+            } catch (err) {
+                console.error('Failed to dispatch section timetable email:', err);
+                const mailtoUrl = `mailto:${encodeURIComponent(recipientEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(buildPlainTextBody(presName, notes))}`;
+                window.open(mailtoUrl, '_blank');
+                closeModal();
+                showBanner(`Logged section timetable dispatch to ${recipientEmail}.`, 'info');
+            }
+        }
+    });
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+window.openEmailSectionModal = openEmailSectionModal;
 window.openEmailWorkloadModal = openEmailWorkloadModal;
+window.openEmailAllFacultyWorkloadsModal = openEmailAllFacultyWorkloadsModal;
 window.viewEmailDetails = viewEmailDetails;
 
 document.addEventListener('DOMContentLoaded', initApp);
