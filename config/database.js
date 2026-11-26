@@ -24,7 +24,8 @@ if (process.env.DB_SSL === 'true') {
 const knex = require('knex')({
     client: process.env.DB_CLIENT || 'mysql2',
     connection: connectionConfig,
-    pool: { min: 0, max: 7 }
+    acquireConnectionTimeout: 2500, // Fail fast in 2.5s if local DB not reachable
+    pool: { min: 0, max: 7, acquireTimeoutMillis: 2500 }
 });
 
 module.exports = knex;

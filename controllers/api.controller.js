@@ -239,7 +239,7 @@ exports.createRoom = async (req, res) => {
         try {
             const { db } = require('../config/firestore');
             await db.collection('rooms').doc(roomData.name).set(roomData, { merge: true });
-        } catch (fsErr) {}
+        } catch (fsErr) { }
 
         res.json({ success: true });
     } catch (err) {
@@ -254,12 +254,12 @@ exports.deleteRoom = async (req, res) => {
         if (!isText(name, 100)) return res.status(400).json({ error: 'Room name is invalid' });
         try {
             await knex('rooms').where({ name }).del();
-        } catch (dbErr) {}
+        } catch (dbErr) { }
 
         try {
             const { db } = require('../config/firestore');
             await db.collection('rooms').doc(name).delete();
-        } catch (fsErr) {}
+        } catch (fsErr) { }
 
         res.json({ success: true });
     } catch (err) {
@@ -521,7 +521,7 @@ exports.createRequestHistory = async (req, res) => {
         try {
             const { db } = require('../config/firestore');
             await db.collection('request_history').doc(String(id)).set(row, { merge: true });
-        } catch (fsErr) {}
+        } catch (fsErr) { }
 
         res.json({ success: true, id, status });
     } catch (err) {
@@ -544,7 +544,7 @@ exports.getRequestHistory = async (req, res) => {
                 const { db } = require('../config/firestore');
                 const snap = await db.collection('request_history').get();
                 rows = snap.docs.map(d => d.data());
-            } catch (fsErr) {}
+            } catch (fsErr) { }
         }
         const records = rows.map(row => ({
             id: row.id,
@@ -724,7 +724,7 @@ exports.createProgram = async (req, res) => {
         try {
             const { db } = require('../config/firestore');
             await db.collection('programs').doc(name.trim()).set({ name: name.trim() }, { merge: true });
-        } catch (fsErr) {}
+        } catch (fsErr) { }
 
         res.json({ success: true });
     } catch (err) {
@@ -751,7 +751,7 @@ exports.createSection = async (req, res) => {
             await db.collection('programs').doc(program_name.trim()).update({
                 sections: FieldValue.arrayUnion(section_name.trim())
             });
-        } catch (fsErr) {}
+        } catch (fsErr) { }
 
         res.json({ success: true });
     } catch (err) {
@@ -789,7 +789,7 @@ exports.createSubject = async (req, res) => {
             await db.collection('programs').doc(program_name.trim()).update({
                 subjects: FieldValue.arrayUnion(subjectObj)
             });
-        } catch (fsErr) {}
+        } catch (fsErr) { }
 
         res.json({ success: true });
     } catch (err) {
@@ -808,7 +808,7 @@ exports.deleteSection = async (req, res) => {
             await knex('program_sections')
                 .where({ program_name: program_name.trim(), section_name: section_name.trim() })
                 .del();
-        } catch (dbErr) {}
+        } catch (dbErr) { }
 
         try {
             const { db } = require('../config/firestore');
@@ -816,7 +816,7 @@ exports.deleteSection = async (req, res) => {
             await db.collection('programs').doc(program_name.trim()).update({
                 sections: FieldValue.arrayRemove(section_name.trim())
             });
-        } catch (fsErr) {}
+        } catch (fsErr) { }
 
         res.json({ success: true });
     } catch (err) {
@@ -882,23 +882,21 @@ exports.deleteSubject = async (req, res) => {
 // 7. Emails API
 exports.getEmails = async (req, res) => {
     try {
-        const hasTable = await knex.schema.hasTable('emails');
-        if (!hasTable) {
-            await knex.schema.createTable('emails', table => {
-                table.increments('id').primary();
-                table.string('recipient_email', 255).notNullable();
-                table.string('recipient', 255).defaultTo('');
-                table.string('recipient_name', 255).defaultTo('');
-                table.string('subject', 255).notNullable();
-                table.text('body');
-                table.string('status', 50).defaultTo('sent');
-                table.string('sent_by', 100).defaultTo('Academic Head');
-                table.timestamp('created_at').defaultTo(knex.fn.now());
-                table.timestamp('updated_at').defaultTo(knex.fn.now());
-            });
-            return res.json([]);
+        let emails = [];
+        try {
+            emails = await knex('emails').select('*').orderBy('id', 'desc');
+        } catch (dbErr) {
+            console.warn('Knex getEmails failed, trying Firestore:', dbErr.message);
         }
-        const emails = await knex('emails').select('*').orderBy('id', 'desc');
+
+        if (emails.length === 0) {
+            try {
+                const { db } = require('../config/firestore');
+                const snap = await db.collection('emails').get();
+                emails = snap.docs.map(d => d.data());
+            } catch (fsErr) {}
+        }
+
         res.json(emails.map(e => ({
             ...e,
             recipient_email: e.recipient_email || e.recipient || '',
@@ -914,48 +912,6 @@ exports.getEmails = async (req, res) => {
 
 exports.createEmail = async (req, res) => {
     try {
-        const hasTable = await knex.schema.hasTable('emails');
-        if (!hasTable) {
-            await knex.schema.createTable('emails', table => {
-                table.increments('id').primary();
-                table.string('recipient_email', 255).notNullable();
-                table.string('recipient', 255).defaultTo('');
-                table.string('recipient_name', 255).defaultTo('');
-                table.string('subject', 255).notNullable();
-                table.text('body');
-                table.string('status', 50).defaultTo('sent');
-                table.string('sent_by', 100).defaultTo('Academic Head');
-                table.timestamp('created_at').defaultTo(knex.fn.now());
-                table.timestamp('updated_at').defaultTo(knex.fn.now());
-            });
-        }
-
-        let columnInfo = await knex('emails').columnInfo();
-
-        // Safely add missing columns to existing MySQL tables
-        if (!columnInfo.sent_by) {
-            try {
-                await knex.schema.alterTable('emails', t => t.string('sent_by', 100).defaultTo('Academic Head'));
-            } catch (colErr) {
-                console.warn('Could not add sent_by column:', colErr.message);
-            }
-        }
-        if (!columnInfo.recipient_email) {
-            try {
-                await knex.schema.alterTable('emails', t => t.string('recipient_email', 255).defaultTo(''));
-            } catch (colErr) {
-                console.warn('Could not add recipient_email column:', colErr.message);
-            }
-        }
-        if (!columnInfo.recipient_name) {
-            try {
-                await knex.schema.alterTable('emails', t => t.string('recipient_name', 255).defaultTo(''));
-            } catch (colErr) {
-                console.warn('Could not add recipient_name column:', colErr.message);
-            }
-        }
-        columnInfo = await knex('emails').columnInfo();
-
         const { recipient, recipient_email, recipient_name, subject, body, status } = req.body;
         const targetEmail = (recipient_email || recipient || '').trim();
         if (!targetEmail || !subject) {
@@ -963,71 +919,101 @@ exports.createEmail = async (req, res) => {
         }
 
         const insertData = {
+            id: Date.now(),
             subject: String(subject).trim(),
             body: body ? String(body).trim() : '',
-            status: status || 'sent'
+            status: status || 'sent',
+            sent_by: req.user?.username || req.user?.display_name || 'Academic Head',
+            recipient_email: targetEmail,
+            recipient: targetEmail,
+            recipient_name: (recipient_name || '').trim(),
+            created_at: new Date()
         };
-        if (columnInfo.sent_by) insertData.sent_by = req.user?.username || req.user?.display_name || 'Academic Head';
-        if (columnInfo.recipient_email) insertData.recipient_email = targetEmail;
-        if (columnInfo.recipient) insertData.recipient = targetEmail;
-        if (columnInfo.recipient_name) insertData.recipient_name = (recipient_name || '').trim();
 
-        const isPlaceholder = (val) => !val || /^(your_|your-|placeholder|<)/i.test(val) || val.includes('your_pup_account') || val.includes('your_password') || val.includes('your-email');
+        // 1. SMTP Dispatcher (Optimized for Fast Delivery)
+        let delivery = { delivered: false };
+        const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
+        const smtpPort = Number(process.env.SMTP_PORT || 465);
+        const smtpSecure = process.env.SMTP_SECURE ? process.env.SMTP_SECURE === 'true' : (smtpPort === 465);
+        const smtpUser = process.env.SMTP_USER || 'pupwmssystem@gmail.com';
+        const smtpPass = process.env.SMTP_PASS || 'vnhzgvvhdwrxcjly';
+        const smtpFrom = process.env.SMTP_FROM || `"PUP PQ Academic Head" <${smtpUser}>`;
 
-        let delivery = { delivered: false, reason: 'SMTP credentials not configured in .env' };
-        if (process.env.SMTP_USER && process.env.SMTP_PASS && !isPlaceholder(process.env.SMTP_USER) && !isPlaceholder(process.env.SMTP_PASS)) {
-            try {
-                const nodemailer = require('nodemailer');
-                const transporter = nodemailer.createTransport({
-                    host: process.env.SMTP_HOST || 'smtp.office365.com',
-                    port: Number(process.env.SMTP_PORT || 587),
-                    secure: process.env.SMTP_SECURE === 'true',
-                    auth: {
-                        user: process.env.SMTP_USER,
-                        pass: process.env.SMTP_PASS
-                    },
-                    tls: {
-                        ciphers: 'SSLv3',
-                        rejectUnauthorized: false
-                    }
-                });
-
-                const mailOptions = {
-                    from: process.env.SMTP_FROM || `"PUP PQ Academic Head" <${process.env.SMTP_USER}>`,
-                    to: targetEmail,
-                    subject: String(subject).trim(),
-                    html: body || ''
-                };
-
-                if (Array.isArray(req.body.attachments) && req.body.attachments.length > 0) {
-                    mailOptions.attachments = req.body.attachments.map(att => {
-                        let contentBuffer;
-                        if (typeof att.content === 'string') {
-                            contentBuffer = Buffer.from(att.content, 'base64');
-                        } else {
-                            contentBuffer = att.content;
-                        }
-                        return {
-                            filename: att.filename,
-                            content: contentBuffer,
-                            contentType: att.contentType || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                        };
-                    });
-                    console.log(`[SMTP] Sending email with ${mailOptions.attachments.length} attachment(s):`, mailOptions.attachments.map(a => a.filename));
+        try {
+            const nodemailer = require('nodemailer');
+            const transporter = nodemailer.createTransport({
+                host: smtpHost,
+                port: smtpPort,
+                secure: smtpSecure,
+                auth: {
+                    user: smtpUser,
+                    pass: smtpPass
+                },
+                pool: true,
+                maxConnections: 3,
+                connectionTimeout: 8000,
+                greetingTimeout: 5000,
+                socketTimeout: 10000,
+                tls: {
+                    rejectUnauthorized: false
                 }
+            });
 
-                await transporter.sendMail(mailOptions);
-                delivery = { delivered: true };
-                insertData.status = 'sent';
-            } catch (smtpErr) {
-                console.error('SMTP delivery error:', smtpErr);
-                delivery = { delivered: false, error: smtpErr.message };
-                insertData.status = 'failed';
+            const mailOptions = {
+                from: smtpFrom,
+                to: targetEmail,
+                subject: String(subject).trim(),
+                html: body || ''
+            };
+
+            if (Array.isArray(req.body.attachments) && req.body.attachments.length > 0) {
+                mailOptions.attachments = req.body.attachments.map(att => {
+                    let contentBuffer;
+                    if (typeof att.content === 'string') {
+                        contentBuffer = Buffer.from(att.content, 'base64');
+                    } else {
+                        contentBuffer = att.content;
+                    }
+                    return {
+                        filename: att.filename,
+                        content: contentBuffer,
+                        contentType: att.contentType || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                    };
+                });
             }
+
+            await transporter.sendMail(mailOptions);
+            delivery = { delivered: true };
+            insertData.status = 'sent';
+        } catch (smtpErr) {
+            console.error('SMTP delivery error:', smtpErr.message);
+            delivery = { delivered: false, error: smtpErr.message };
+            insertData.status = 'failed';
         }
 
-        const [id] = await knex('emails').insert(insertData);
-        res.json({ success: true, id, delivery });
+        // 2. Persist Email Log (Fast Knex attempt + Firestore fallback)
+        let savedId = insertData.id;
+        try {
+            const [id] = await knex('emails').insert({
+                subject: insertData.subject,
+                body: insertData.body,
+                status: insertData.status,
+                sent_by: insertData.sent_by,
+                recipient_email: insertData.recipient_email,
+                recipient: insertData.recipient,
+                recipient_name: insertData.recipient_name
+            });
+            if (id) savedId = id;
+        } catch (dbErr) {
+            console.warn('Knex log email failed, saving to Firestore:', dbErr.message);
+        }
+
+        try {
+            const { db } = require('../config/firestore');
+            await db.collection('emails').doc(String(savedId)).set(insertData, { merge: true });
+        } catch (fsErr) {}
+
+        res.json({ success: true, id: savedId, delivery });
     } catch (err) {
         console.error('Error saving/sending email:', err);
         res.status(500).json({ error: err.message });
