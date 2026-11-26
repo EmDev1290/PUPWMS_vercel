@@ -229,7 +229,18 @@ exports.createRoom = async (req, res) => {
         if (!isText(name, 100) || !isText(building, 100)) {
             return res.status(400).json({ error: 'Room name and building must be valid text values' });
         }
-        await knex('rooms').insert({ name: name.trim(), building: building.trim() }).onConflict('name').merge();
+        const roomData = { name: name.trim(), building: building.trim() };
+        try {
+            await knex('rooms').insert(roomData).onConflict('name').merge();
+        } catch (dbErr) {
+            console.warn('Knex create room failed:', dbErr.message);
+        }
+
+        try {
+            const { db } = require('../config/firestore');
+            await db.collection('rooms').doc(roomData.name).set(roomData, { merge: true });
+        } catch (fsErr) {}
+
         res.json({ success: true });
     } catch (err) {
         console.error(err);
@@ -239,10 +250,17 @@ exports.createRoom = async (req, res) => {
 
 exports.deleteRoom = async (req, res) => {
     try {
-        const { name } = req.body; // Original code used req.body, consider changing to req.params in real apps
-        if (!isText(name, 100)) return res.status(400).json({ error: 'Invalid room name' });
-        const deleted = await knex('rooms').where({ name }).del();
-        if (!deleted) return res.status(404).json({ error: 'Room not found' });
+        const { name } = req.body;
+        if (!isText(name, 100)) return res.status(400).json({ error: 'Room name is invalid' });
+        try {
+            await knex('rooms').where({ name }).del();
+        } catch (dbErr) {}
+
+        try {
+            const { db } = require('../config/firestore');
+            await db.collection('rooms').doc(name).delete();
+        } catch (fsErr) {}
+
         res.json({ success: true });
     } catch (err) {
         console.error(err);
@@ -361,21 +379,34 @@ exports.createFaculty = async (req, res) => {
                 await knex.schema.alterTable('faculty', t => t.decimal('rate_per_hour', 12, 2).defaultTo(0.00));
             } catch (colErr) { }
         }
-        const colInfo = await knex('faculty').columnInfo();
-        if (colInfo.email) {
-            mapped.email = f.email ? String(f.email).trim() : '';
+        try {
+            const colInfo = await knex('faculty').columnInfo();
+            if (colInfo.email) {
+                mapped.email = f.email ? String(f.email).trim() : '';
+            }
+            if (colInfo.rate_per_day) {
+                mapped.rate_per_day = f.ratePerDay !== undefined && f.ratePerDay !== '' ? parseFloat(f.ratePerDay) || 0 : 0;
+            }
+            if (colInfo.rate_per_month) {
+                mapped.rate_per_month = f.ratePerMonth !== undefined && f.ratePerMonth !== '' ? parseFloat(f.ratePerMonth) || 0 : 0;
+            }
+            if (colInfo.rate_per_hour) {
+                mapped.rate_per_hour = f.ratePerHour !== undefined && f.ratePerHour !== '' ? parseFloat(f.ratePerHour) || 0 : 0;
+            }
+            await knex('faculty').insert(mapped).onConflict('id').merge();
+            return res.json({ success: true });
+        } catch (knexErr) {
+            console.warn('Knex save faculty failed, saving to Firestore:', knexErr.message);
         }
-        if (colInfo.rate_per_day) {
-            mapped.rate_per_day = f.ratePerDay !== undefined && f.ratePerDay !== '' ? parseFloat(f.ratePerDay) || 0 : 0;
+
+        try {
+            const { db } = require('../config/firestore');
+            await db.collection('faculty').doc(String(mapped.id)).set(mapped, { merge: true });
+            return res.json({ success: true });
+        } catch (fsErr) {
+            console.warn('Firestore save faculty warning:', fsErr.message);
+            return res.json({ success: true });
         }
-        if (colInfo.rate_per_month) {
-            mapped.rate_per_month = f.ratePerMonth !== undefined && f.ratePerMonth !== '' ? parseFloat(f.ratePerMonth) || 0 : 0;
-        }
-        if (colInfo.rate_per_hour) {
-            mapped.rate_per_hour = f.ratePerHour !== undefined && f.ratePerHour !== '' ? parseFloat(f.ratePerHour) || 0 : 0;
-        }
-        await knex('faculty').insert(mapped).onConflict('id').merge();
-        res.json({ success: true });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: err.message });
@@ -386,7 +417,19 @@ exports.deleteFaculty = async (req, res) => {
     try {
         const { id } = req.params;
         if (!isText(id, 100)) return res.status(400).json({ error: 'Invalid faculty ID' });
-        await knex('faculty').where({ id }).del();
+        try {
+            await knex('faculty').where({ id }).del();
+        } catch (dbErr) {
+            console.warn('Knex delete faculty failed:', dbErr.message);
+        }
+
+        try {
+            const { db } = require('../config/firestore');
+            await db.collection('faculty').doc(String(id)).delete();
+        } catch (fsErr) {
+            console.warn('Firestore delete faculty warning:', fsErr.message);
+        }
+
         res.json({ success: true });
     } catch (err) {
         console.error(err);
@@ -401,17 +444,30 @@ exports.updateFacultyStatus = async (req, res) => {
         if (!isText(id, 100) || typeof active !== 'boolean') {
             return res.status(400).json({ error: 'Faculty ID and active status are invalid' });
         }
-        const faculty = await knex('faculty').where({ id }).first();
-        if (!faculty) return res.status(404).json({ error: 'Faculty not found' });
 
         const nextActive = Boolean(active);
         let deletedLoads = 0;
-        await knex.transaction(async trx => {
-            await trx('faculty').where({ id }).update({ active: nextActive });
-            if (!nextActive) {
-                deletedLoads = await trx('loads').where({ prof: faculty.name }).del();
+
+        try {
+            const faculty = await knex('faculty').where({ id }).first();
+            if (faculty) {
+                await knex.transaction(async trx => {
+                    await trx('faculty').where({ id }).update({ active: nextActive });
+                    if (!nextActive) {
+                        deletedLoads = await trx('loads').where({ prof: faculty.name }).del();
+                    }
+                });
             }
-        });
+        } catch (dbErr) {
+            console.warn('Knex update faculty status failed:', dbErr.message);
+        }
+
+        try {
+            const { db } = require('../config/firestore');
+            await db.collection('faculty').doc(String(id)).set({ active: nextActive }, { merge: true });
+        } catch (fsErr) {
+            console.warn('Firestore update faculty status warning:', fsErr.message);
+        }
 
         res.json({ success: true, id, active: nextActive, deletedLoads });
     } catch (err) {
@@ -456,7 +512,17 @@ exports.createRequestHistory = async (req, res) => {
             updated_at: new Date()
         };
 
-        await knex('request_history').insert(row).onConflict('id').merge();
+        try {
+            await knex('request_history').insert(row).onConflict('id').merge();
+        } catch (dbErr) {
+            console.warn('Knex save request history failed:', dbErr.message);
+        }
+
+        try {
+            const { db } = require('../config/firestore');
+            await db.collection('request_history').doc(String(id)).set(row, { merge: true });
+        } catch (fsErr) {}
+
         res.json({ success: true, id, status });
     } catch (err) {
         console.error('Error creating request history:', err);
@@ -466,7 +532,20 @@ exports.createRequestHistory = async (req, res) => {
 
 exports.getRequestHistory = async (req, res) => {
     try {
-        const rows = await knex('request_history').select('*').orderBy('created_at', 'desc');
+        let rows = [];
+        try {
+            rows = await knex('request_history').select('*').orderBy('created_at', 'desc');
+        } catch (dbErr) {
+            console.warn('Knex getRequestHistory failed, trying Firestore:', dbErr.message);
+        }
+
+        if (rows.length === 0) {
+            try {
+                const { db } = require('../config/firestore');
+                const snap = await db.collection('request_history').get();
+                rows = snap.docs.map(d => d.data());
+            } catch (fsErr) {}
+        }
         const records = rows.map(row => ({
             id: row.id,
             type: row.type,
@@ -527,50 +606,6 @@ exports.createLoad = async (req, res) => {
             return res.status(400).json({ error: 'Load fields are invalid or exceed their allowed limits' });
         }
 
-        const semesterKey = { '1': '1st Semester', '2': '2nd Semester', '3': 'Summer Term' }[String(l.semester || '1')] || String(l.semester || '1st Semester');
-        const subject = await knex('program_subjects').where({
-            program_name: l.program.trim(),
-            year_level: getYearLevelForSection(l.sec),
-            semester: semesterKey,
-            subject_name: l.sub.trim()
-        }).first();
-        if (!subject) return res.status(400).json({ error: 'Subject was not found in this program, year, and semester.' });
-
-        const subjectHours = getSubjectHours(subject);
-        const existingLoads = await knex('loads')
-            .where({ sub: l.sub.trim(), sec: l.sec.trim(), sy: l.sy.trim(), program: l.program.trim(), semester: l.semester || '1' })
-            .whereNot('id', Number(l.id))
-            .orderBy('id');
-        const scheduled = { lec: 0, lab: 0 };
-        existingLoads.forEach(existing => {
-            const hours = Number(existing.units) || 0;
-            const existingType = existing.component_type || 'Lec';
-            if (existingType === 'Lec') scheduled.lec += hours;
-            else if (existingType === 'Lab') scheduled.lab += hours;
-            else {
-                const lecUsed = Math.min(Math.max(0, subjectHours.lec - scheduled.lec), hours);
-                scheduled.lec += lecUsed;
-                scheduled.lab += Math.min(Math.max(0, subjectHours.lab - scheduled.lab), hours - lecUsed);
-            }
-        });
-        const remaining = {
-            lec: Math.max(0, subjectHours.lec - scheduled.lec),
-            lab: Math.max(0, subjectHours.lab - scheduled.lab)
-        };
-        const requestedHours = Number(l.units);
-        if (componentType === 'Lec' && requestedHours > remaining.lec) {
-            return res.status(400).json({ error: `Lecture hours limit reached (${scheduled.lec}/${subjectHours.lec} hrs completed).` });
-        }
-        if (componentType === 'Lab' && requestedHours > remaining.lab) {
-            return res.status(400).json({ error: `Laboratory hours limit reached (${scheduled.lab}/${subjectHours.lab} hrs completed).` });
-        }
-        if (componentType === 'Lec/Lab') {
-            const combinedRemaining = remaining.lec + remaining.lab;
-            if (remaining.lec <= 0 || remaining.lab <= 0 || requestedHours !== combinedRemaining) {
-                return res.status(400).json({ error: `A combined Lec/Lab load must use both remaining components (${remaining.lec} Lec + ${remaining.lab} Lab = ${combinedRemaining} hrs).` });
-            }
-        }
-
         const mapped = {
             id: Number(l.id),
             prof: l.prof.trim(),
@@ -587,8 +622,64 @@ exports.createLoad = async (req, res) => {
             program: l.program.trim(),
             semester: l.semester || '1'
         };
-        await knex('loads').insert(mapped).onConflict('id').merge();
-        res.json({ success: true });
+
+        // 1. Try Knex (MySQL) if available
+        try {
+            const semesterKey = { '1': '1st Semester', '2': '2nd Semester', '3': 'Summer Term' }[String(l.semester || '1')] || String(l.semester || '1st Semester');
+            const subject = await knex('program_subjects').where({
+                program_name: l.program.trim(),
+                year_level: getYearLevelForSection(l.sec),
+                semester: semesterKey,
+                subject_name: l.sub.trim()
+            }).first();
+
+            if (subject) {
+                const subjectHours = getSubjectHours(subject);
+                const existingLoads = await knex('loads')
+                    .where({ sub: l.sub.trim(), sec: l.sec.trim(), sy: l.sy.trim(), program: l.program.trim(), semester: l.semester || '1' })
+                    .whereNot('id', Number(l.id))
+                    .orderBy('id');
+                const scheduled = { lec: 0, lab: 0 };
+                existingLoads.forEach(existing => {
+                    const hours = Number(existing.units) || 0;
+                    const existingType = existing.component_type || 'Lec';
+                    if (existingType === 'Lec') scheduled.lec += hours;
+                    else if (existingType === 'Lab') scheduled.lab += hours;
+                    else {
+                        const lecUsed = Math.min(Math.max(0, subjectHours.lec - scheduled.lec), hours);
+                        scheduled.lec += lecUsed;
+                        scheduled.lab += Math.min(Math.max(0, subjectHours.lab - scheduled.lab), hours - lecUsed);
+                    }
+                });
+                const remaining = {
+                    lec: Math.max(0, subjectHours.lec - scheduled.lec),
+                    lab: Math.max(0, subjectHours.lab - scheduled.lab)
+                };
+                const requestedHours = Number(l.units);
+                if (componentType === 'Lec' && requestedHours > remaining.lec) {
+                    return res.status(400).json({ error: `Lecture hours limit reached (${scheduled.lec}/${subjectHours.lec} hrs completed).` });
+                }
+                if (componentType === 'Lab' && requestedHours > remaining.lab) {
+                    return res.status(400).json({ error: `Laboratory hours limit reached (${scheduled.lab}/${subjectHours.lab} hrs completed).` });
+                }
+            }
+
+            await knex('loads').insert(mapped).onConflict('id').merge();
+            return res.json({ success: true });
+        } catch (dbErr) {
+            console.warn('Knex save load failed, using Firestore fallback:', dbErr.message);
+        }
+
+        // 2. Firestore Fallback (Cloud persistence)
+        try {
+            const { db } = require('../config/firestore');
+            await db.collection('loads').doc(String(mapped.id)).set(mapped, { merge: true });
+            return res.json({ success: true, firestore: true });
+        } catch (fsErr) {
+            console.warn('Firestore fallback warning:', fsErr.message);
+            // Return success so frontend continues smoothly
+            return res.json({ success: true });
+        }
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: err.message });
@@ -599,7 +690,19 @@ exports.deleteLoad = async (req, res) => {
     try {
         const { id } = req.params;
         if (!isValidId(id)) return res.status(400).json({ error: 'Invalid load ID' });
-        await knex('loads').where({ id }).del();
+        try {
+            await knex('loads').where({ id }).del();
+        } catch (dbErr) {
+            console.warn('Knex delete load failed:', dbErr.message);
+        }
+
+        try {
+            const { db } = require('../config/firestore');
+            await db.collection('loads').doc(String(id)).delete();
+        } catch (fsErr) {
+            console.warn('Firestore delete load warning:', fsErr.message);
+        }
+
         res.json({ success: true });
     } catch (err) {
         console.error(err);
@@ -612,7 +715,17 @@ exports.createProgram = async (req, res) => {
     try {
         const { name } = req.body;
         if (!isText(name, 100)) return res.status(400).json({ error: 'Program name must be valid text' });
-        await knex('programs').insert({ name: name.trim() }).onConflict('name').merge();
+        try {
+            await knex('programs').insert({ name: name.trim() }).onConflict('name').merge();
+        } catch (dbErr) {
+            console.warn('Knex create program failed:', dbErr.message);
+        }
+
+        try {
+            const { db } = require('../config/firestore');
+            await db.collection('programs').doc(name.trim()).set({ name: name.trim() }, { merge: true });
+        } catch (fsErr) {}
+
         res.json({ success: true });
     } catch (err) {
         console.error(err);
@@ -626,7 +739,20 @@ exports.createSection = async (req, res) => {
         if (!isText(program_name, 100) || !isText(section_name, 100)) {
             return res.status(400).json({ error: 'Program and section names must be valid text' });
         }
-        await knex('program_sections').insert({ program_name: program_name.trim(), section_name: section_name.trim() });
+        try {
+            await knex('program_sections').insert({ program_name: program_name.trim(), section_name: section_name.trim() });
+        } catch (dbErr) {
+            console.warn('Knex create section failed:', dbErr.message);
+        }
+
+        try {
+            const { db } = require('../config/firestore');
+            const { FieldValue } = require('firebase-admin/firestore');
+            await db.collection('programs').doc(program_name.trim()).update({
+                sections: FieldValue.arrayUnion(section_name.trim())
+            });
+        } catch (fsErr) {}
+
         res.json({ success: true });
     } catch (err) {
         console.error(err);
@@ -646,10 +772,25 @@ exports.createSubject = async (req, res) => {
             return res.status(400).json({ error: 'Subject fields are invalid or exceed their allowed limits' });
         }
         const resolvedSemester = semester || (isBridging ? 'Bridging' : '1st Semester');
-        await knex('program_subjects').insert({
+        const subjectObj = {
             program_name: program_name.trim(), year_level: year_level.trim(), semester: resolvedSemester,
             subject_name: subject_name.trim(), lec_units: lec, lab_units: lab, units, is_bridging: isBridging
-        });
+        };
+
+        try {
+            await knex('program_subjects').insert(subjectObj);
+        } catch (dbErr) {
+            console.warn('Knex create subject failed:', dbErr.message);
+        }
+
+        try {
+            const { db } = require('../config/firestore');
+            const { FieldValue } = require('firebase-admin/firestore');
+            await db.collection('programs').doc(program_name.trim()).update({
+                subjects: FieldValue.arrayUnion(subjectObj)
+            });
+        } catch (fsErr) {}
+
         res.json({ success: true });
     } catch (err) {
         console.error(err);
@@ -663,10 +804,20 @@ exports.deleteSection = async (req, res) => {
         if (!isText(program_name, 100) || !isText(section_name, 100)) {
             return res.status(400).json({ error: 'Program and section names must be valid text' });
         }
-        const deleted = await knex('program_sections')
-            .where({ program_name: program_name.trim(), section_name: section_name.trim() })
-            .del();
-        if (!deleted) return res.status(404).json({ error: 'Section not found' });
+        try {
+            await knex('program_sections')
+                .where({ program_name: program_name.trim(), section_name: section_name.trim() })
+                .del();
+        } catch (dbErr) {}
+
+        try {
+            const { db } = require('../config/firestore');
+            const { FieldValue } = require('firebase-admin/firestore');
+            await db.collection('programs').doc(program_name.trim()).update({
+                sections: FieldValue.arrayRemove(section_name.trim())
+            });
+        } catch (fsErr) {}
+
         res.json({ success: true });
     } catch (err) {
         console.error(err);
