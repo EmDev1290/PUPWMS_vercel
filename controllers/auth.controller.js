@@ -11,7 +11,25 @@ exports.login = async (req, res) => {
             return res.status(400).json({ error: 'Username and password are required' });
         }
         
-        const user = await knex('users').where({ username }).first();
+        let user = null;
+        try {
+            user = await knex('users').where({ username }).first();
+        } catch (dbErr) {
+            console.warn('Knex user query failed, falling back to Firestore:', dbErr.message);
+        }
+        
+        if (!user) {
+            try {
+                const { db } = require('../config/firestore');
+                const userDoc = await db.collection('users').doc(username).get();
+                if (userDoc.exists) {
+                    user = userDoc.data();
+                }
+            } catch (fsErr) {
+                console.warn('Firestore user fallback error:', fsErr.message);
+            }
+        }
+
         if (!user) {
             return res.status(400).json({ error: 'Invalid username or password' });
         }

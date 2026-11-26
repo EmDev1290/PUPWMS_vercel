@@ -16,7 +16,19 @@ const defaultKeyPath = path.join(__dirname, '..', 'serviceAccountKey.json');
 const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_KEY || (fs.existsSync(defaultKeyPath) ? defaultKeyPath : null);
 
 if (getApps().length === 0) {
-    if (serviceAccountPath && fs.existsSync(serviceAccountPath)) {
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+        try {
+            const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+            initializeApp({
+                credential: cert(serviceAccount),
+                projectId: serviceAccount.project_id || 'pup-pq-scheduler-be242'
+            });
+            console.log('✅ Firebase Admin initialized with FIREBASE_SERVICE_ACCOUNT_JSON.');
+        } catch (e) {
+            console.warn('⚠️ Could not parse FIREBASE_SERVICE_ACCOUNT_JSON:', e.message);
+            initializeApp({ projectId: 'pup-pq-scheduler-be242' });
+        }
+    } else if (serviceAccountPath && fs.existsSync(serviceAccountPath)) {
         try {
             const serviceAccount = require(serviceAccountPath);
             initializeApp({

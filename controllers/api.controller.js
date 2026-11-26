@@ -44,28 +44,73 @@ const matchesProgram = (assignedProgStr, targetProg) => {
 // 1. Initial State
 exports.getInitialState = async (req, res) => {
     try {
-        try {
-            const hasRateDay = await knex.schema.hasColumn('faculty', 'rate_per_day');
-            if (!hasRateDay) {
-                await knex.schema.alterTable('faculty', t => t.decimal('rate_per_day', 12, 2).defaultTo(0.00));
-            }
-            const hasRateMonth = await knex.schema.hasColumn('faculty', 'rate_per_month');
-            if (!hasRateMonth) {
-                await knex.schema.alterTable('faculty', t => t.decimal('rate_per_month', 12, 2).defaultTo(0.00));
-            }
-            const hasRateHour = await knex.schema.hasColumn('faculty', 'rate_per_hour');
-            if (!hasRateHour) {
-                await knex.schema.alterTable('faculty', t => t.decimal('rate_per_hour', 12, 2).defaultTo(0.00));
-            }
-        } catch (schemaErr) {}
+        let roomRows = [];
+        let facultyRows = [];
+        let syRows = [];
+        let progRows = [];
+        let sectionRows = [];
+        let subjectRows = [];
+        let loadRows = [];
+        let useFirestoreFallback = false;
 
-        const roomRows = await knex('rooms').select('*');
-        const facultyRows = await knex('faculty').select('*');
-        const syRows = await knex('school_years').select('*');
-        const progRows = await knex('programs').select('*');
-        const sectionRows = await knex('program_sections').select('*');
-        const subjectRows = await knex('program_subjects').select('*');
-        const loadRows = await knex('loads').select('*');
+        try {
+            try {
+                const hasRateDay = await knex.schema.hasColumn('faculty', 'rate_per_day');
+                if (!hasRateDay) {
+                    await knex.schema.alterTable('faculty', t => t.decimal('rate_per_day', 12, 2).defaultTo(0.00));
+                }
+                const hasRateMonth = await knex.schema.hasColumn('faculty', 'rate_per_month');
+                if (!hasRateMonth) {
+                    await knex.schema.alterTable('faculty', t => t.decimal('rate_per_month', 12, 2).defaultTo(0.00));
+                }
+                const hasRateHour = await knex.schema.hasColumn('faculty', 'rate_per_hour');
+                if (!hasRateHour) {
+                    await knex.schema.alterTable('faculty', t => t.decimal('rate_per_hour', 12, 2).defaultTo(0.00));
+                }
+            } catch (schemaErr) {}
+
+            roomRows = await knex('rooms').select('*');
+            facultyRows = await knex('faculty').select('*');
+            syRows = await knex('school_years').select('*');
+            progRows = await knex('programs').select('*');
+            sectionRows = await knex('program_sections').select('*');
+            subjectRows = await knex('program_subjects').select('*');
+            loadRows = await knex('loads').select('*');
+        } catch (dbErr) {
+            console.warn('Knex database query failed, attempting Firestore fallback:', dbErr.message);
+            useFirestoreFallback = true;
+        }
+
+        if (useFirestoreFallback) {
+            try {
+                const { db } = require('../config/firestore');
+                
+                const [roomsSnap, facultySnap, loadsSnap, programsSnap] = await Promise.all([
+                    db.collection('rooms').get(),
+                    db.collection('faculty').get(),
+                    db.collection('loads').get(),
+                    db.collection('programs').get()
+                ]);
+
+                roomRows = roomsSnap.docs.map(d => d.data());
+                facultyRows = facultySnap.docs.map(d => d.data());
+                loadRows = loadsSnap.docs.map(d => d.data());
+
+                programsSnap.docs.forEach(d => {
+                    const data = d.data();
+                    progRows.push({ name: data.name });
+                    (data.sections || []).forEach(sec => {
+                        sectionRows.push({ program_name: data.name, section_name: sec });
+                    });
+                    (data.subjects || []).forEach(sub => {
+                        subjectRows.push({ ...sub, program_name: data.name });
+                    });
+                });
+                syRows = [{ name: 'AY 2025-2026' }];
+            } catch (fsErr) {
+                console.error('Firestore fallback failed:', fsErr.message);
+            }
+        }
 
         const facultyRegistry = facultyRows.map(row => ({
             id: row.id,

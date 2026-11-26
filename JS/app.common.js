@@ -1,4 +1,32 @@
 
+// Global Cloud API Router (Directs cloud frontend traffic to Render backend)
+const CLOUD_BACKEND_URL = 'https://pupwms-backend.onrender.com';
+const BACKEND_URL = (typeof window !== 'undefined' && window.location && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
+    ? ''
+    : CLOUD_BACKEND_URL;
+
+if (typeof window !== 'undefined' && BACKEND_URL && window.fetch) {
+    const _originalFetch = window.fetch;
+    window.fetch = function(input, init) {
+        try {
+            if (typeof input === 'string') {
+                if (input.startsWith('/api')) {
+                    input = BACKEND_URL + input;
+                } else if (input.startsWith('api/')) {
+                    input = BACKEND_URL + '/' + input;
+                }
+            } else if (input instanceof URL && input.pathname.startsWith('/api')) {
+                input = new URL(BACKEND_URL + input.pathname + input.search);
+            } else if (typeof Request !== 'undefined' && input instanceof Request && input.url.startsWith('/api')) {
+                input = new Request(BACKEND_URL + input.url, init);
+            }
+        } catch (e) {
+            console.warn('API router proxy warning:', e);
+        }
+        return _originalFetch.call(this, input, init);
+    };
+}
+
 const TEMP_DATABASE = window.TEMP_DATABASE || null;
 const facultyRegistry = TEMP_DATABASE?.facultyRegistry || [];
 function escapeHtml(value) {
